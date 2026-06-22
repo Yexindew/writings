@@ -1,0 +1,1970 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>智能点餐走访洞察报告 · 到餐商家体验管理</title>
+<style>
+  /* ===== RESET & BASE ===== */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  ::-webkit-scrollbar { display: none; }
+
+  :root {
+    --yellow: #FFCD00;
+    --yellow-dim: rgba(255,205,0,0.12);
+    --yellow-border: rgba(255,205,0,0.25);
+    --dark: #1A1A2E;
+    --dark-2: #16213E;
+    --dark-3: #0F3460;
+    --surface: #F8F9FC;
+    --white: #FFFFFF;
+    --border: #E8ECF4;
+    --text: #1A1A2E;
+    --text-2: #5A6478;
+    --text-3: #9AA3B2;
+    --red: #FF4757;
+    --green: #2ED573;
+    --blue: #1E90FF;
+    --orange: #FF8C00;
+    --slide-w: 1280px;
+    --slide-h: 720px;
+  }
+
+  html, body {
+    width: 100%; height: 100%;
+    background: #0D0D1A;
+    font-family: -apple-system, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+    overflow: hidden;
+    color: var(--text);
+  }
+
+  #app {
+    width: 100vw; height: 100vh;
+    position: relative;
+    overflow: hidden;
+    background: radial-gradient(ellipse at center, #1a1a2e 0%, #0a0a14 100%);
+  }
+
+  #viewport {
+    position: absolute;
+    top: 50%; left: 50%;
+    width: var(--slide-w);
+    height: var(--slide-h);
+    overflow: hidden;
+    transform-origin: center center;
+    transform: translate(-50%, -50%);
+  }
+
+  /* ===== SLIDES ===== */
+  .slide {
+    position: absolute;
+    inset: 0;
+    width: 100%; height: 100%;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.55s cubic-bezier(0.4,0,0.2,1), transform 0.55s cubic-bezier(0.4,0,0.2,1);
+    transform: translateX(60px);
+  }
+  .slide.active { opacity: 1; pointer-events: all; transform: translateX(0); }
+  .slide.prev   { opacity: 0; transform: translateX(-60px); }
+
+  /* ===== NAV ===== */
+  #nav {
+    position: fixed;
+    bottom: 16px; left: 50%;
+    transform: translateX(-50%);
+    display: flex; align-items: center; gap: 10px;
+    z-index: 200;
+    background: rgba(0,0,0,0.5);
+    backdrop-filter: blur(12px);
+    padding: 7px 14px;
+    border-radius: 100px;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  .nav-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.22);
+    cursor: pointer; border: none; padding: 0;
+    transition: all 0.3s;
+  }
+  .nav-dot.active { background: var(--yellow); width: 22px; border-radius: 4px; }
+  .nav-btn {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.12);
+    color: white; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; transition: all 0.2s;
+  }
+  .nav-btn:hover { background: rgba(255,205,0,0.18); border-color: var(--yellow); }
+  .nav-btn:disabled { opacity: 0.28; cursor: not-allowed; }
+  #slide-counter { color: rgba(255,255,255,0.38); font-size: 11px; min-width: 44px; text-align: center; }
+
+  /* ===== TOP PROGRESS ===== */
+  #progress {
+    position: absolute; top: 0; left: 0;
+    height: 3px; background: var(--yellow);
+    transition: width 0.5s cubic-bezier(0.4,0,0.2,1);
+    z-index: 100; border-radius: 0 2px 2px 0;
+  }
+
+  /* ===== SHARED COMPONENTS ===== */
+  .tag-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--yellow-dim); border: 1px solid var(--yellow-border);
+    border-radius: 100px; padding: 5px 14px;
+    font-size: 11px; font-weight: 700; color: var(--yellow);
+    letter-spacing: 0.08em; text-transform: uppercase;
+  }
+  .tag-pill.solid { background: var(--yellow); color: var(--dark); border-color: var(--yellow); }
+
+  .section-eyebrow {
+    font-size: 11px; font-weight: 700; color: var(--yellow);
+    letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 10px;
+  }
+
+  /* Video player shared */
+  .vid-wrap { position: relative; cursor: pointer; overflow: hidden; }
+  .vid-wrap video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .vid-play-btn {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%,-50%);
+    z-index: 4; width: 56px; height: 56px; border-radius: 50%;
+    background: rgba(255,205,0,0.92); border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.25s;
+    box-shadow: 0 6px 28px rgba(255,205,0,0.45);
+  }
+  .vid-play-btn:hover { transform: translate(-50%,-50%) scale(1.1); box-shadow: 0 10px 36px rgba(255,205,0,0.65); }
+  .vid-play-btn svg { width: 22px; height: 22px; fill: var(--dark); }
+  .vid-play-btn.playing .icon-play { display: none; }
+  .vid-play-btn.playing .icon-pause { display: block !important; }
+  .icon-pause { display: none; }
+  .vid-controls {
+    position: absolute; bottom: 0; left: 0; right: 0; z-index: 4;
+    padding: 28px 14px 10px;
+    background: linear-gradient(to top, rgba(0,0,0,0.72) 0%, transparent 100%);
+    display: flex; flex-direction: column; gap: 5px;
+    opacity: 0; transition: opacity 0.3s;
+  }
+  .vid-wrap:hover .vid-controls { opacity: 1; }
+  .vid-prog-wrap {
+    width: 100%; height: 3px; background: rgba(255,255,255,0.22);
+    border-radius: 2px; cursor: pointer; position: relative;
+  }
+  .vid-prog-bar {
+    height: 100%; background: var(--yellow); border-radius: 2px;
+    width: 0%; transition: width 0.1s linear; pointer-events: none;
+  }
+  .vid-time { font-size: 10px; color: rgba(255,255,255,0.55); }
+
+  /* ============================================================
+     SLIDE 1 — COVER
+  ============================================================ */
+  #slide-1 {
+    background: var(--dark);
+    display: flex;
+  }
+  .s1-left {
+    flex: 0 0 54%;
+    display: flex; flex-direction: column; justify-content: center;
+    padding: 60px 52px 60px 68px;
+    position: relative; z-index: 2;
+    gap: 0;
+  }
+  .s1-left-inner {
+    display: flex; flex-direction: column;
+    margin-top: 120px;
+  }
+  .s1-tag {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--yellow-dim); border: 1px solid var(--yellow-border);
+    border-radius: 100px; padding: 6px 16px;
+    font-size: 11px; font-weight: 700; color: var(--yellow);
+    letter-spacing: 0.1em; text-transform: uppercase;
+    margin-bottom: 28px; width: fit-content;
+  }
+  .s1-tag::before {
+    content: ''; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--yellow); animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%,100% { opacity:1; transform:scale(1); }
+    50% { opacity:0.45; transform:scale(0.75); }
+  }
+  .s1-eyebrow { font-size: 12px; font-weight: 500; color: var(--text-3); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 18px; }
+  .s1-title { font-size: 48px; font-weight: 800; line-height: 1.18; color: var(--white); margin-bottom: 0; letter-spacing: -0.02em; }
+  .s1-title .hl { color: var(--yellow); }
+  .s1-subtitle { font-size: 18px; font-weight: 400; color: rgba(255,255,255,0.5); margin-bottom: 44px; line-height: 1.6; }
+  .s1-subtitle strong { color: rgba(255,255,255,0.82); font-weight: 600; }
+  .s1-meta { display: flex; gap: 28px; margin-top: 36px; }
+  .s1-meta-item { display: flex; flex-direction: column; gap: 3px; }
+  .s1-meta-label { font-size: 10px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.1em; }
+  .s1-meta-value { font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.68); }
+  .s1-divider { width: 1px; background: rgba(255,255,255,0.05); flex: 0 0 1px; }
+  .s1-right { flex: 1; position: relative; overflow: hidden; }
+  .s1-right::before {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(to right, var(--dark) 0%, transparent 38%);
+    z-index: 1;
+  }
+  .s1-right::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(135deg, rgba(255,205,0,0.07) 0%, transparent 55%);
+    z-index: 1;
+  }
+  .s1-vid-wrap { width: 100%; height: 100%; }
+  .s1-badge {
+    position: absolute; bottom: 36px; right: 28px; z-index: 3;
+    background: rgba(255,205,0,0.13); border: 1px solid rgba(255,205,0,0.35);
+    backdrop-filter: blur(12px); border-radius: 12px; padding: 10px 18px; text-align: center;
+  }
+  .s1-badge-num { font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.35); line-height: 1; }
+  .s1-badge-label { font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.88); margin-top: 4px; line-height: 1.6; white-space: nowrap; }
+
+  /* ============================================================
+     SLIDE 2 — OVERVIEW (走访概况)
+  ============================================================ */
+  #slide-2 { background: var(--dark); display: flex; flex-direction: column; position: absolute; inset: 0; overflow: hidden; }
+  #slide-2::before {
+    content: ''; position: absolute; top: -200px; right: -200px;
+    width: 560px; height: 560px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,205,0,0.05) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .s-ov-wrap { flex: 1; display: flex; flex-direction: column; gap: 0; overflow: hidden; min-height: 0; height: 100%; }
+  .s-ov-left {
+    flex: 0 0 auto; background: transparent;
+    border-right: none; border-bottom: 1px solid rgba(255,255,255,0.06);
+    display: flex; flex-direction: row; align-items: flex-start; justify-content: flex-start;
+    padding: 36px 68px 28px; gap: 48px; position: relative; z-index: 1;
+  }
+  .s-ov-title { font-size: 34px; font-weight: 800; color: var(--white); line-height: 1.25; letter-spacing: -0.02em; margin: 10px 0 16px; }
+  .s-ov-title span { color: var(--yellow); }
+  .s-ov-bg { font-size: 13px; color: rgba(255,255,255,0.45); line-height: 1.8; margin-bottom: 36px; border-left: 3px solid var(--yellow); padding-left: 14px; }
+  .s-ov-meta-list { display: flex; flex-direction: column; gap: 14px; }
+  .s-ov-meta-item { display: flex; flex-direction: column; gap: 3px; }
+  .s-ov-meta-label { font-size: 10px; font-weight: 700; color: rgba(255,205,0,0.5); letter-spacing: 0.12em; text-transform: uppercase; }
+  .s-ov-meta-value { font-size: 14px; font-weight: 600; color: rgba(255,255,255,0.82); }
+  .s-ov-right {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    padding: 28px 68px 36px; position: relative; z-index: 1;
+  }
+  .s-ov-card-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; width: 100%; }
+  .s-ov-card {
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px; padding: 26px 28px; display: flex; align-items: flex-start; gap: 16px;
+    transition: all 0.3s; cursor: default;
+  }
+  .s-ov-card:hover { background: rgba(255,205,0,0.06); border-color: rgba(255,205,0,0.2); transform: translateY(-2px); }
+  .s-ov-card--full { grid-column: 1 / -1; }
+  .s-ov-card-icon { font-size: 28px; flex-shrink: 0; margin-top: 2px; }
+  .s-ov-card-body { display: flex; flex-direction: column; gap: 6px; }
+  .s-ov-card-label { font-size: 10px; font-weight: 700; color: rgba(255,205,0,0.5); letter-spacing: 0.12em; text-transform: uppercase; display:flex; align-items:center; gap:4px; }
+  .s-ov-tooltip-wrap { position: relative; display: inline-flex; align-items: center; }
+  .s-ov-q { display: inline-flex; align-items: center; justify-content: center; width: 13px; height: 13px; border-radius: 50%; border: 1px solid rgba(255,205,0,0.4); color: rgba(255,205,0,0.6); font-size: 9px; font-weight: 700; cursor: default; letter-spacing: 0; text-transform: none; flex-shrink: 0; }
+  .s-ov-tooltip-box { display: none; position: fixed; background: rgba(20,20,30,0.97); border: 1px solid rgba(255,205,0,0.2); border-radius: 8px; padding: 10px 14px; font-size: 12px; font-weight: 400; color: rgba(255,255,255,0.82); line-height: 1.6; white-space: normal; width: 260px; letter-spacing: 0; text-transform: none; z-index: 9999; pointer-events: none; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
+  .s-ov-tooltip-box::after { content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 6px solid transparent; border-top-color: rgba(255,205,0,0.2); }
+  .s-ov-card-value { font-size: 16px; font-weight: 700; color: var(--white); line-height: 1.3; }
+  .s-ov-card-sub { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+  .s-ov-tag {
+    display: inline-flex; align-items: center;
+    background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 100px; padding: 3px 12px;
+    font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.65);
+  }
+  .s-ov-tag--low { background: rgba(30,144,255,0.12); border-color: rgba(30,144,255,0.25); color: #5BA8FF; }
+  .s-ov-tag--mid { background: rgba(255,140,0,0.12); border-color: rgba(255,140,0,0.25); color: #FFB347; }
+  .s-ov-tag--high { background: rgba(46,213,115,0.12); border-color: rgba(46,213,115,0.25); color: #5EE89A; }
+
+  /* ============================================================
+     SLIDE 3 — BACKGROUND & CONCLUSION
+  ============================================================ */
+  #slide-3 { background: var(--dark); display: flex; flex-direction: column; position: absolute; inset: 0; overflow: hidden; }
+  #slide-3::before {
+    content: ''; position: absolute; top: -180px; right: -180px;
+    width: 520px; height: 520px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,205,0,0.06) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .s2-header { padding: 40px 68px 28px; position: relative; z-index: 1; }
+  .s2-title { font-size: 32px; font-weight: 800; color: var(--white); letter-spacing: -0.02em; margin-top: 10px; }
+  .s2-title span { color: var(--yellow); }
+  .s2-bg-desc {
+    margin-top: 12px; font-size: 13px; color: rgba(255,255,255,0.45); line-height: 1.7;
+    max-width: 680px;
+    background: rgba(255,255,255,0.04); border-left: 3px solid var(--yellow);
+    padding: 10px 16px; border-radius: 0 8px 8px 0;
+  }
+  .s2-grid {
+    flex: 1; display: grid; grid-template-columns: 1fr 1fr;
+    gap: 1px; background: rgba(255,255,255,0.05);
+    margin: 0 68px 36px; border-radius: 16px; overflow: hidden;
+    position: relative; z-index: 1;
+  }
+  .s2-conclusion-card {
+    background: rgba(255,255,255,0.03); padding: 24px 28px;
+    display: flex; flex-direction: column; gap: 10px;
+    transition: background 0.3s; cursor: default;
+  }
+  .s2-conclusion-card:hover { background: rgba(255,205,0,0.05); }
+  .s2-c-num { font-size: 10px; font-weight: 700; color: rgba(255,205,0,0.4); letter-spacing: 0.1em; }
+  .s2-c-title { font-size: 15px; font-weight: 700; color: var(--white); line-height: 1.4; }
+  .s2-c-desc { font-size: 12px; color: rgba(255,255,255,0.42); line-height: 1.7; flex: 1; }
+  .s2-c-tag {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 10px; font-weight: 600; padding: 3px 9px;
+    border-radius: 100px; width: fit-content;
+  }
+  .s2-c-tag.red { background: rgba(255,71,87,0.12); color: #FF6B7A; border: 1px solid rgba(255,71,87,0.2); }
+  .s2-c-tag.orange { background: rgba(255,140,0,0.12); color: #FFB347; border: 1px solid rgba(255,140,0,0.2); }
+  .s2-c-tag.blue { background: rgba(30,144,255,0.12); color: #5BA8FF; border: 1px solid rgba(30,144,255,0.2); }
+  .s2-c-tag.green { background: rgba(46,213,115,0.12); color: #5EE89A; border: 1px solid rgba(46,213,115,0.2); }
+
+  /* ===== SLIDE 3: SUMMARY LIST ===== */
+  .s3-summary-list {
+    flex: 1; display: flex; flex-direction: column; justify-content: center;
+    gap: 20px; padding: 0 68px 48px;
+  }
+  .s3-summary-row {
+    display: flex; align-items: center; gap: 0;
+    border-radius: 16px; overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.08);
+    min-height: 110px;
+  }
+  .s3-summary-left {
+    display: flex; align-items: center; gap: 20px;
+    padding: 28px 32px; flex-shrink: 0; width: 280px;
+  }
+  .s3-summary-icon { font-size: 36px; flex-shrink: 0; }
+  .s3-summary-meta { display: flex; flex-direction: column; gap: 6px; }
+  .s3-summary-label { font-size: 13px; font-weight: 700; color: rgba(255,255,255,0.55); letter-spacing: 0.04em; }
+  .s3-summary-count { font-size: 36px; font-weight: 800; letter-spacing: -0.02em; line-height: 1; }
+  .s3-summary-divider { width: 1px; align-self: stretch; background: rgba(255,255,255,0.08); flex-shrink: 0; }
+  .s3-summary-desc {
+    flex: 1; padding: 28px 36px;
+    font-size: 17px; font-weight: 500; color: rgba(255,255,255,0.82); line-height: 1.65;
+  }
+  .s3-summary-row--green { background: rgba(46,213,115,0.06); border-color: rgba(46,213,115,0.18); }
+  .s3-summary-row--green .s3-summary-left { background: rgba(46,213,115,0.08); }
+  .s3-summary-row--green .s3-summary-count { color: #2ED573; }
+  .s3-summary-row--orange { background: rgba(255,140,0,0.06); border-color: rgba(255,140,0,0.18); }
+  .s3-summary-row--orange .s3-summary-left { background: rgba(255,140,0,0.08); }
+  .s3-summary-row--orange .s3-summary-count { color: #FFB347; }
+  .s3-summary-row--red { background: rgba(255,71,87,0.06); border-color: rgba(255,71,87,0.18); }
+  .s3-summary-row--red .s3-summary-left { background: rgba(255,71,87,0.08); }
+  .s3-summary-row--red .s3-summary-count { color: #FF6B7A; }
+
+  /* ============================================================
+     SLIDE 3 — POSITIVE VALUE
+  ============================================================ */
+  #slide-4 { background: var(--surface); display: flex; flex-direction: row; }
+  #slide-10 { background: var(--surface); display: flex; flex-direction: row; }
+  .s3-left {
+    flex: 0 0 38%; background: var(--dark); display: flex; flex-direction: column;
+    justify-content: center; padding: 56px 48px 56px 64px; position: relative; overflow: hidden;
+  }
+  .s3-left::after {
+    content: ''; position: absolute; bottom: -120px; right: -120px;
+    width: 360px; height: 360px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,205,0,0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .s3-section-tag { background: var(--yellow); color: var(--dark); font-size: 10px; font-weight: 700; padding: 3px 10px; border-radius: 4px; letter-spacing: 0.08em; text-transform: uppercase; width: fit-content; margin-bottom: 20px; }
+  .s3-left-title { font-size: 36px; font-weight: 800; color: var(--white); line-height: 1.25; letter-spacing: -0.02em; margin-bottom: 8px; }
+  .s3-left-title span { color: var(--yellow); }
+  .s3-left-sub { font-size: 13px; color: rgba(255,255,255,0.42); line-height: 1.65; margin-bottom: 36px; }
+  .s3-stats { display: flex; gap: 0; }
+  .s3-stat { flex: 1; text-align: center; padding: 20px 0; border-right: 1px solid rgba(255,255,255,0.07); }
+  .s3-stat:last-child { border-right: none; }
+  .s3-stat-num { font-size: 36px; font-weight: 800; color: var(--yellow); line-height: 1; }
+  .s3-stat-label { font-size: 11px; color: rgba(255,255,255,0.38); margin-top: 5px; }
+  .s3-divider { width: 1px; background: var(--border); flex: 0 0 1px; }
+  .s3-right {
+    flex: 1; display: flex; flex-direction: column; justify-content: center;
+    padding: 40px 56px 40px 48px; gap: 16px;
+  }
+  .s3-right-label { font-size: 11px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 4px; }
+  .value-row {
+    background: var(--white); border: 1px solid var(--border); border-radius: 12px;
+    padding: 18px 24px; display: flex; align-items: center; gap: 20px;
+    transition: all 0.3s; cursor: default; position: relative; overflow: hidden;
+  }
+  .value-row::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    background: var(--yellow); opacity: 0; transition: opacity 0.3s;
+  }
+  .value-row:hover { border-color: var(--yellow); box-shadow: 0 4px 18px rgba(255,205,0,0.12); transform: translateX(4px); }
+  .value-row:hover::before { opacity: 1; }
+  .value-row-icon { font-size: 26px; flex-shrink: 0; width: 44px; text-align: center; }
+  .value-row-body { flex: 1; }
+  .value-row-title { font-size: 15px; font-weight: 700; color: var(--text); }
+  .value-row-desc { font-size: 12px; color: var(--text-2); margin-top: 2px; line-height: 1.5; }
+  .value-row-badge {
+    flex-shrink: 0;
+    background: var(--yellow-dim); border: 1px solid var(--yellow-border);
+    border-radius: 100px; padding: 4px 14px;
+    font-size: 12px; font-weight: 700; color: #9A7800;
+    white-space: nowrap;
+  }
+
+  /* ============================================================
+     SLIDE 5 — PAIN POINT 1 (认知)
+  ============================================================ */
+  #slide-11-pain { background: var(--dark); display: flex; flex-direction: column; position: absolute; inset: 0; overflow: hidden; }
+  .pain-header { padding: 32px 68px 20px; position: relative; z-index: 1; }
+  .pain-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: rgba(255,71,87,0.12); border: 1px solid rgba(255,71,87,0.25);
+    border-radius: 100px; padding: 5px 14px;
+    font-size: 11px; font-weight: 700; color: #FF6B7A;
+    letter-spacing: 0.08em; margin-bottom: 12px; width: fit-content;
+  }
+  .pain-title { font-size: 26px; font-weight: 800; color: var(--white); letter-spacing: -0.02em; line-height: 1.3; }
+  .pain-title span { color: var(--yellow); }
+  .pain-desc { font-size: 13px; color: rgba(255,255,255,0.42); line-height: 1.65; margin-top: 8px; max-width: 760px; }
+  .pain-body { flex: 1; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1px; background: rgba(255,255,255,0.05); margin: 0 68px 32px; border-radius: 16px; overflow: hidden; position: relative; z-index: 1; }
+  .pain-detail-card { background: rgba(255,255,255,0.03); padding: 24px 28px; display: flex; flex-direction: column; gap: 14px; }
+  .pain-detail-card:hover { background: rgba(255,205,0,0.04); }
+  .pdc-label { font-size: 10px; font-weight: 700; color: rgba(255,205,0,0.5); letter-spacing: 0.12em; text-transform: uppercase; }
+  .pdc-content { font-size: 13px; color: rgba(255,255,255,0.72); line-height: 1.75; flex: 1; }
+  .pdc-content strong { color: var(--yellow); font-weight: 700; }
+  .pdc-flow {
+    display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 4px;
+  }
+  .pdc-flow-item {
+    background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 6px; padding: 5px 12px;
+    font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.7);
+  }
+  .pdc-flow-arrow { color: rgba(255,205,0,0.6); font-size: 14px; font-weight: 700; }
+  .pdc-flow-item.active { background: rgba(255,205,0,0.12); border-color: rgba(255,205,0,0.3); color: var(--yellow); }
+
+  /* ===== SLIDE 4 NEW CASE CARDS ===== */
+  .s4-case-body { flex: 1; display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; padding: 16px 56px 28px; }
+  .s4-case-card {
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px; padding: 22px 22px; display: flex; flex-direction: column; gap: 12px;
+    transition: all 0.3s; cursor: default; position: relative; overflow: hidden;
+  }
+  .s4-case-card::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    background: var(--yellow); opacity: 0; transition: opacity 0.3s;
+  }
+  .s4-case-card:hover { border-color: rgba(255,205,0,0.3); box-shadow: 0 4px 20px rgba(255,205,0,0.1); }
+  .s4-case-card:hover::before { opacity: 1; }
+  .s4-case-num { font-size: 10px; font-weight: 700; color: rgba(255,205,0,0.5); letter-spacing: 0.12em; text-transform: uppercase; }
+  .s4-case-problem { font-size: 12.5px; color: rgba(255,255,255,0.72); line-height: 1.7; flex: 1; }
+  .s4-case-quote {
+    background: rgba(255,255,255,0.05); border-left: 2px solid var(--yellow); border-radius: 0 8px 8px 0;
+    padding: 10px 14px; font-size: 12px; color: rgba(255,255,255,0.55); line-height: 1.6; font-style: italic;
+  }
+  .s4-case-issue {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(255,205,0,0.1); border: 1px solid rgba(255,205,0,0.2);
+    border-radius: 6px; padding: 5px 10px;
+    font-size: 11px; font-weight: 600; color: var(--yellow);
+  }
+  .s4-case-meta { display: flex; flex-direction: column; gap: 4px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.06); }
+  .s4-case-meta-row { display: flex; gap: 6px; font-size: 11px; }
+  .s4-case-meta-label { color: rgba(255,255,255,0.3); min-width: 52px; }
+  .s4-case-meta-value { color: rgba(255,255,255,0.6); }
+
+  /* ============================================================
+     SLIDE 11 — INSIGHT 1 DETAIL
+  ============================================================ */
+  #slide-11 { background: var(--dark); display: flex; flex-direction: column; position: absolute; inset: 0; overflow: hidden; }
+  #slide-11::before {
+    content: ''; position: absolute; top: -160px; right: -160px;
+    width: 480px; height: 480px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,205,0,0.05) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .ins-layout {
+    flex: 1; display: flex; flex-direction: row; min-height: 0; overflow: hidden;
+  }
+  .ins-left {
+    flex: 0 0 55%; display: flex; flex-direction: column; justify-content: center;
+    padding: 40px 48px 40px 64px; gap: 18px; overflow: hidden;
+  }
+  .ins-eyebrow {
+    font-size: 15px; font-weight: 800; color: rgba(255,205,0,0.85);
+    letter-spacing: 0.06em;
+  }
+  .ins-title {
+    font-size: 22px; font-weight: 800; color: var(--white); line-height: 1.35;
+    letter-spacing: -0.01em;
+  }
+  .ins-title span { color: var(--yellow); }
+  .ins-case-block, .ins-quote-block, .ins-problem-block, .ins-opt-block {
+    display: flex; flex-direction: column; gap: 6px;
+    padding: 14px 18px; border-radius: 10px;
+  }
+  .ins-case-block { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); }
+  .ins-quote-block { background: rgba(255,205,0,0.06); border-left: 3px solid var(--yellow); border-radius: 0 10px 10px 0; }
+  .ins-voice-block {
+    display: flex; align-items: flex-start; gap: 12px;
+    background: rgba(255,205,0,0.07); border: 1px solid rgba(255,205,0,0.2);
+    border-radius: 12px; padding: 18px 20px;
+  }
+  .ins-voice-mark {
+    font-size: 48px; line-height: 1; color: var(--yellow); font-family: Georgia, serif;
+    flex-shrink: 0; margin-top: 0; opacity: 1; letter-spacing: -4px;
+  }
+  .ins-voice-content { display: flex; flex-direction: column; gap: 8px; }
+  .ins-voice-text {
+    font-size: 17px; font-weight: 700; color: var(--white); line-height: 1.55;
+    letter-spacing: 0.01em;
+  }
+  .ins-voice-tag {
+    font-size: 10px; font-weight: 700; color: rgba(255,205,0,0.6);
+    letter-spacing: 0.12em; text-transform: uppercase;
+  }
+  .ins-problem-block { background: rgba(255,71,87,0.06); border: 1px solid rgba(255,71,87,0.15); }
+  .ins-opt-block { background: rgba(46,213,115,0.06); border: 1px solid rgba(46,213,115,0.15); }
+  .ins-case-label, .ins-quote-label, .ins-problem-label, .ins-opt-label {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+  }
+  .ins-case-label { color: rgba(255,205,0,0.65); }
+  .ins-quote-label { color: rgba(255,205,0,0.7); }
+  .ins-problem-label { color: rgba(255,71,87,0.8); }
+  .ins-opt-label { color: rgba(46,213,115,0.8); }
+  .ins-case-text, .ins-problem-text, .ins-opt-text {
+    font-size: 13px; color: rgba(255,255,255,0.72); line-height: 1.65;
+  }
+  .ins-quote-text {
+    font-size: 14px; font-weight: 600; color: rgba(255,255,255,0.9); line-height: 1.6;
+    font-style: italic;
+  }
+  .ins-right {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    padding: 32px 48px 32px 24px;
+  }
+  .ins-img-wrap {
+    position: relative; width: 100%; height: 100%; max-height: 520px;
+    border-radius: 14px; overflow: hidden; background: #111;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+  }
+  .ins-img-wrap img {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+  }
+  .ins-img-caption {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    background: rgba(0,0,0,0.65); backdrop-filter: blur(4px);
+    padding: 8px 14px; font-size: 12px; color: rgba(255,255,255,0.8); line-height: 1.4;
+  }
+  #slide-12 { background: var(--dark); display: flex; flex-direction: column; position: absolute; inset: 0; overflow: hidden; }
+  .ins-right--cards {
+    flex-direction: column; justify-content: center; gap: 20px;
+    padding: 32px 48px 32px 16px;
+  }
+  /* ===== SLIDE 11 TWO-CASE LAYOUT ===== */
+  .ins11-wrap {
+    flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden;
+    padding: 28px 56px 28px 64px; gap: 20px;
+  }
+  .ins11-header { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+  .ins11-cases { flex: 1; display: flex; gap: 20px; min-height: 0; overflow: hidden; }
+  .ins11-card {
+    flex: 1; display: flex; flex-direction: column; gap: 0;
+    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px; overflow: hidden;
+  }
+  .ins11-img {
+    flex: 0 0 52%; position: relative; overflow: hidden; background: #111;
+  }
+  .ins11-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .ins11-img-label {
+    position: absolute; top: 10px;
+    background: rgba(0,0,0,0.68); backdrop-filter: blur(4px);
+    color: rgba(255,255,255,0.9); font-size: 10px; font-weight: 700;
+    padding: 4px 10px; border-radius: 4px; letter-spacing: 0.04em;
+    border: 1px solid rgba(255,255,255,0.15);
+  }
+  .ins11-img-label--left { left: 10px; border-color: rgba(46,213,115,0.4); color: #5EE89A; }
+  .ins11-img-label--right { right: 10px; border-color: rgba(255,71,87,0.4); color: #FF6B7A; }
+  .ins11-img-caption {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+    padding: 6px 12px; font-size: 11px; color: rgba(255,255,255,0.75);
+  }
+  .ins11-body {
+    flex: 1; display: flex; flex-direction: column; gap: 10px;
+    padding: 16px 20px; overflow: hidden; justify-content: space-between;
+  }
+  .ins11-case-num {
+    font-size: 10px; font-weight: 800; color: rgba(255,205,0,0.65);
+    letter-spacing: 0.12em; text-transform: uppercase;
+  }
+  .ins11-problem {
+    font-size: 13px; color: rgba(255,255,255,0.75); line-height: 1.6;
+  }
+  .ins11-voice {
+    display: flex; align-items: flex-start; gap: 10px;
+    background: rgba(255,205,0,0.07); border: 1px solid rgba(255,205,0,0.2);
+    border-radius: 10px; padding: 12px 16px;
+  }
+  .ins11-voice-mark {
+    font-size: 52px; line-height: 0.7; color: var(--yellow); font-family: Georgia, serif;
+    flex-shrink: 0; margin-top: 6px; opacity: 0.9;
+  }
+  .ins11-voice-content { display: flex; flex-direction: column; gap: 6px; }
+  .ins11-voice-text {
+    font-size: 13.5px; font-weight: 700; color: var(--white); line-height: 1.55;
+  }
+  .ins11-voice-tag {
+    font-size: 10px; font-weight: 700; color: rgba(255,205,0,0.6);
+    letter-spacing: 0.1em;
+  }
+  .ins11-insight {
+    background: rgba(46,213,115,0.06); border: 1px solid rgba(46,213,115,0.15);
+    border-radius: 8px; padding: 10px 14px;
+    font-size: 12.5px; color: rgba(255,255,255,0.65); line-height: 1.6;
+  }
+  .ins11-insight-label {
+    font-size: 10px; font-weight: 800; color: rgba(46,213,115,0.8);
+    letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 4px;
+  }
+  .ins-faq-quote {
+    background: rgba(255,205,0,0.07); border: 1px solid rgba(255,205,0,0.2);
+    border-radius: 12px; padding: 18px 20px; display: flex; flex-direction: column; gap: 8px;
+  }
+  .ins-faq-quote-label {
+    font-size: 10px; font-weight: 700; color: rgba(255,205,0,0.6); letter-spacing: 0.12em; text-transform: uppercase;
+  }
+  .ins-faq-quote-row {
+    display: flex; align-items: flex-start; gap: 8px;
+  }
+  .ins-faq-quote-row .ins-faq-section-label {
+    flex-shrink: 0; margin-top: 1px;
+    background: rgba(255,205,0,0.15); color: rgba(255,205,0,0.9); border: none;
+  }
+  .ins-faq-quote-text {
+    font-size: 12.5px; font-weight: 500; color: rgba(255,255,255,0.82); line-height: 1.6;
+  }
+  .ins-faq-img-card {
+    flex: 1; border-radius: 12px; overflow: hidden; background: #f5f5f5;
+    display: flex; flex-direction: column; min-height: 0;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  }
+  .ins-faq-img-card img { width: 100%; flex: 1; object-fit: cover; display: block; min-height: 0; }
+  .ins-faq-img-caption {
+    padding: 10px 14px; font-size: 11px; color: var(--text-2); background: var(--white);
+    border-top: 1px solid var(--border); line-height: 1.5; flex-shrink: 0;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .ins-faq-stat {
+    font-size: 11px; font-weight: 700; color: #333; letter-spacing: 0.01em;
+    padding-bottom: 4px; border-bottom: 1px solid #eee;
+  }
+  .ins-faq-section {
+    font-size: 10.5px; color: #555; line-height: 1.55;
+  }
+  .ins-faq-section-label {
+    display: inline-block; font-weight: 700; color: #222;
+    background: #f0f0f0; border-radius: 3px; padding: 1px 6px; margin-right: 5px; font-size: 10px;
+  }
+  .ins-scene-card {
+    flex: 1; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px; padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; min-height: 0;
+  }
+  .ins-scene-title {
+    font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.5); letter-spacing: 0.1em; text-transform: uppercase;
+  }
+  .ins-scene-row {
+    display: flex; gap: 12px; flex: 1; min-height: 0;
+  }
+  .ins-scene-item {
+    flex: 1; border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 8px;
+  }
+  .ins-scene-item--bad {
+    background: rgba(255,71,87,0.08); border: 1px solid rgba(255,71,87,0.2);
+  }
+  .ins-scene-item--ok {
+    background: rgba(46,213,115,0.08); border: 1px solid rgba(46,213,115,0.2);
+  }
+  .ins-scene-item-label {
+    font-size: 13px; font-weight: 700; color: rgba(255,255,255,0.9);
+  }
+  .ins-scene-item-desc {
+    font-size: 11.5px; color: rgba(255,255,255,0.6); line-height: 1.55; flex: 1;
+  }
+  .ins-scene-tag {
+    display: inline-block; font-size: 10px; font-weight: 700; border-radius: 4px; padding: 2px 8px; align-self: flex-start;
+  }
+  .ins-scene-tag--bad { background: rgba(255,71,87,0.15); color: #ff6b7a; }
+  .ins-scene-tag--ok  { background: rgba(46,213,115,0.15); color: #2ed573; }
+  .ins-scene-note {
+    font-size: 11px; color: rgba(255,205,0,0.7); font-weight: 600; text-align: center;
+    padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.08);
+  }
+
+  /* ============================================================
+     SLIDE 6 — PAIN ANALYSIS (痛点1 根因分析)
+  ============================================================ */
+  .case-header {
+    background: var(--white); border-bottom: 1px solid var(--border);
+    padding: 20px 56px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+  }
+  .case-header-left { display: flex; align-items: center; gap: 12px; }
+  .case-section-tag { background: rgba(255,71,87,0.1); color: #FF4757; border: 1px solid rgba(255,71,87,0.2); font-size: 10px; font-weight: 700; padding: 3px 10px; border-radius: 4px; letter-spacing: 0.08em; text-transform: uppercase; }
+  .case-header-title { font-size: 16px; font-weight: 700; color: var(--text); }
+  .case-body { flex: 1; display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; padding: 20px 56px 28px; }
+  .case-card {
+    background: var(--white); border: 1px solid var(--border); border-radius: 14px;
+    padding: 22px 22px; display: flex; flex-direction: column; gap: 12px;
+    transition: all 0.3s; cursor: default; position: relative; overflow: hidden;
+  }
+  .case-card::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    background: var(--yellow); opacity: 0; transition: opacity 0.3s;
+  }
+  .case-card:hover { border-color: var(--yellow); box-shadow: 0 4px 20px rgba(255,205,0,0.12); transform: translateX(3px); }
+  .case-card:hover::before { opacity: 1; }
+  .case-store { font-size: 13px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 6px; }
+  .case-store::before { content: '🏪'; font-size: 14px; }
+  .case-text { font-size: 12px; color: var(--text-2); line-height: 1.7; flex: 1; }
+  .case-quote {
+    background: var(--dark); border-radius: 8px; padding: 12px 16px;
+    font-size: 12px; color: rgba(255,255,255,0.7); line-height: 1.6; font-style: italic;
+    position: relative;
+  }
+  .case-quote::before { content: '"'; font-size: 28px; color: var(--yellow); opacity: 0.4; font-family: Georgia,serif; position: absolute; top: 2px; left: 10px; line-height: 1; }
+  .case-quote p { padding-left: 16px; }
+
+  /* ============================================================
+     SLIDE 7 — OPTIMIZATION DIRECTION (痛点1 优化方向)
+  ============================================================ */
+  #slide-13 { background: var(--dark-2); display: flex; flex-direction: column; position: absolute; inset: 0; overflow: hidden; }
+  .s6-bg-grid {
+    position: absolute; inset: 0;
+    background-image: linear-gradient(rgba(255,205,0,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,205,0,0.025) 1px, transparent 1px);
+    background-size: 48px 48px; pointer-events: none;
+  }
+  .s6-header { padding: 40px 68px 28px; position: relative; z-index: 1; display: flex; align-items: flex-end; justify-content: space-between; }
+  .s6-title { font-size: 32px; font-weight: 800; color: var(--white); letter-spacing: -0.02em; margin-top: 10px; }
+  .s6-title span { color: var(--yellow); }
+  .s6-body { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 0 68px 40px; position: relative; z-index: 1; }
+  .opt-card {
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px; padding: 28px 26px; display: flex; flex-direction: column; gap: 14px;
+    transition: all 0.3s; cursor: default; position: relative; overflow: hidden;
+  }
+  .opt-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: var(--yellow); opacity: 0; transition: opacity 0.3s;
+  }
+  .opt-card:hover { background: rgba(255,205,0,0.06); border-color: rgba(255,205,0,0.2); transform: translateY(-3px); box-shadow: 0 14px 36px rgba(0,0,0,0.3); }
+  .opt-card:hover::before { opacity: 1; }
+  .opt-step { font-size: 10px; font-weight: 700; color: rgba(255,205,0,0.5); letter-spacing: 0.1em; text-transform: uppercase; }
+  .opt-icon { font-size: 26px; }
+  .opt-title { font-size: 17px; font-weight: 700; color: var(--white); line-height: 1.35; }
+  .opt-desc { font-size: 13px; color: rgba(255,255,255,0.42); line-height: 1.75; flex: 1; }
+  .opt-cta { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; color: var(--yellow); opacity: 0.65; transition: opacity 0.2s; }
+  .opt-card:hover .opt-cta { opacity: 1; }
+
+  /* ============================================================
+     SLIDE 6 — EXPERIENCE GAP OVERVIEW
+  ============================================================ */
+  #slide-5 { background: var(--surface); display: flex; flex-direction: row; }
+  .s3-left--dark { background: var(--dark) !important; }
+  .s3-section-tag--orange { background: rgba(255,140,0,0.15) !important; color: #FFB347 !important; border: 1px solid rgba(255,140,0,0.3); }
+  .s3-section-tag--insight { background: rgba(30,144,255,0.15) !important; color: #5BA8FF !important; border: 1px solid rgba(30,144,255,0.3); }
+  .s3-stats--dark { border-top: 1px solid rgba(255,255,255,0.07); margin-top: 8px; }
+  .s3-stats--dark .s3-stat { border-right-color: rgba(255,255,255,0.07); }
+  .s3-stat-num--orange { color: #FFB347 !important; }
+  .s3-right--dark { background: var(--surface); }
+  .gap-table {
+    width: 100%; border-collapse: collapse; margin-top: 8px;
+  }
+  .gap-th {
+    padding: 12px 16px; font-size: 11px; font-weight: 700; color: var(--text-3);
+    text-transform: uppercase; letter-spacing: 0.1em;
+    border-bottom: 2px solid var(--border); text-align: left;
+  }
+  .gap-th--type { width: 130px; }
+  .gap-th--impact { width: 220px; }
+  .gap-tr { transition: background 0.2s; }
+  .gap-tr:hover { background: rgba(255,205,0,0.04); }
+  .gap-td {
+    padding: 20px 16px; font-size: 14px; color: var(--text);
+    border-bottom: 1px solid var(--border); vertical-align: middle; line-height: 1.55;
+  }
+  .gap-badge {
+    display: inline-flex; align-items: center;
+    font-size: 11px; font-weight: 700; padding: 4px 12px;
+    border-radius: 100px; white-space: nowrap;
+  }
+  .gap-badge--orange { background: rgba(255,140,0,0.12); color: #FF8C00; border: 1px solid rgba(255,140,0,0.25); }
+  .gap-badge--red { background: rgba(255,71,87,0.12); color: #FF4757; border: 1px solid rgba(255,71,87,0.25); }
+  .gap-badge--outline { background: transparent; color: var(--text); border: 1px solid rgba(26,26,46,0.35); }
+  .gap-impact {
+    display: inline-flex; align-items: center;
+    font-size: 12px; font-weight: 600; padding: 4px 12px;
+    border-radius: 6px; white-space: nowrap;
+  }
+  .gap-impact--high { background: rgba(255,71,87,0.1); color: #FF4757; }
+  .gap-impact--mid { background: rgba(255,140,0,0.1); color: #FF8C00; }
+  .gap-section-header {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 2px;
+  }
+  .gap-section-title {
+    font-size: 12px; font-weight: 800; color: var(--text); white-space: nowrap;
+    letter-spacing: 0.02em;
+  }
+  .gap-section-badge {
+    display: inline-block; font-size: 11px; font-weight: 600;
+    padding: 2px 10px; border-radius: 100px; white-space: nowrap;
+  }
+  .gap-section-badge--red { background: rgba(255,71,87,0.1); color: #FF4757; border: 1px solid rgba(255,71,87,0.2); }
+  .gap-section-badge--orange { background: rgba(255,140,0,0.1); color: #FF8C00; border: 1px solid rgba(255,140,0,0.2); }
+  .gap-th--date { width: 80px; text-align: center; }
+  .gap-th--owner { width: 64px; text-align: center; }
+  .gap-td--date { width: 80px; font-size: 12.5px; color: var(--text-2); white-space: nowrap; text-align: center; }
+  .gap-td--owner { width: 64px; text-align: center; }
+  .gap-owner-tag {
+    display: inline-block; font-size: 11px; font-weight: 700;
+    padding: 2px 8px; border-radius: 4px; white-space: nowrap;
+    background: rgba(99,179,237,0.12); color: #4299e1; border: 1px solid rgba(99,179,237,0.25);
+  }
+  .gap-owner-tag--alt {
+    background: rgba(154,117,234,0.12); color: #9b72ea; border: 1px solid rgba(154,117,234,0.25);
+  }
+  .s3-right--dark .gap-td { padding: 9px 12px; font-size: 12.5px; }
+  .s3-right--dark .gap-th { padding: 7px 12px; }
+  .s3-right--dark .gap-table { margin-top: 4px; table-layout: fixed; width: 100%; }
+  .gap-block { max-width: 560px; margin-left: auto; margin-right: auto; width: 100%; }
+
+  /* ============================================================
+     SLIDE 8 — PAIN POINT 2 (体验差距)
+  ============================================================ */
+  #slide-13 { background: var(--dark); display: flex; flex-direction: column; position: absolute; inset: 0; overflow: hidden; }
+  #slide-13::before {
+    content: ''; position: absolute; top: -160px; left: -160px;
+    width: 480px; height: 480px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(30,144,255,0.06) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  /* ============================================================
+     SLIDES 8-11 — VIDEO CASE STUDIES
+  ============================================================ */
+  .video-case-slide { background: #0E0E1C; display: flex; flex-direction: column; }
+  .vc-header {
+    background: rgba(255,255,255,0.03); border-bottom: 1px solid rgba(255,255,255,0.07);
+    padding: 18px 56px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+  }
+  .vc-header-left { display: flex; align-items: center; gap: 12px; }
+  .vc-case-tag { background: rgba(255,205,0,0.12); color: #FFCD00; border: 1px solid rgba(255,205,0,0.28); font-size: 10px; font-weight: 700; padding: 3px 10px; border-radius: 4px; letter-spacing: 0.08em; text-transform: uppercase; }
+  .vc-header-title { font-size: 15px; font-weight: 700; color: var(--white); }
+  .vc-header-sub { font-size: 11px; color: rgba(255,255,255,0.35); }
+  .vc-body { flex: 1; display: flex; gap: 0; overflow: hidden; }
+  .vc-video-col { flex: 0 0 58%; position: relative; overflow: hidden; }
+  .vc-video-col .vid-wrap { width: 100%; height: 100%; }
+  .vc-info-col { flex: 1; padding: 28px 40px 28px 36px; display: flex; flex-direction: column; justify-content: center; gap: 18px; }
+  .vc-pain-label { font-size: 10px; font-weight: 700; color: rgba(255,205,0,0.5); letter-spacing: 0.12em; text-transform: uppercase; }
+  .vc-pain-title { font-size: 22px; font-weight: 800; color: var(--white); line-height: 1.35; }
+  .vc-pain-title span { color: var(--yellow); }
+  .vc-pain-desc { font-size: 13px; color: rgba(255,255,255,0.45); line-height: 1.75; }
+  .vc-quote {
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px; padding: 14px 18px; position: relative;
+  }
+  .vc-quote::before { content: '"'; font-size: 32px; color: var(--yellow); opacity: 0.35; font-family: Georgia,serif; position: absolute; top: 4px; left: 12px; line-height: 1; }
+  .vc-quote p { font-size: 13px; color: rgba(255,255,255,0.72); line-height: 1.65; font-style: italic; padding-left: 18px; }
+  .vc-progress {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 5px;
+    background: rgba(255,205,0,0.06); border: 1px solid rgba(255,205,0,0.22);
+    border-radius: 8px; padding: 10px 16px;
+  }
+  .vc-progress-label {
+    font-size: 10px; font-weight: 800; color: #FFCD00; letter-spacing: 0.1em;
+    text-transform: uppercase; white-space: nowrap;
+  }
+  .vc-progress-text {
+    font-size: 12.5px; color: rgba(255,255,255,0.6); line-height: 1.6;
+  }
+  .vc-progress-date {
+    color: #FFCD00; font-weight: 700;
+  }
+  .vc-thumbnail {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+    background: #111;
+  }
+  .vid-overlay-img {
+    position: absolute; top: 14px; left: 14px;
+    width: 180px;
+    z-index: 10;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.55);
+    border: 1px solid rgba(255,255,255,0.12);
+  }
+  .vid-overlay-img img {
+    width: 100%; display: block; object-fit: cover;
+  }
+  .vid-overlay-label {
+    background: rgba(0,0,0,0.62);
+    color: rgba(255,255,255,0.75);
+    font-size: 10px; font-weight: 600;
+    text-align: center;
+    padding: 4px 0;
+    letter-spacing: 0.05em;
+  }
+
+  /* ============================================================
+     SLIDE 13 — PAIN POINT 3 (宣导滞后)
+  ============================================================ */
+  #slide-11 { background: var(--dark); display: flex; flex-direction: column; position: absolute; inset: 0; overflow: hidden; }
+  #slide-11::before {
+    content: ''; position: absolute; top: -160px; right: -160px;
+    width: 480px; height: 480px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,140,0,0.06) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  #slide-11 .pain-header { padding: 22px 52px 10px; }
+  .s13p-body { flex: 1; display: flex; align-items: stretch; gap: 14px; padding: 0 52px 24px; min-height: 0; }
+  .s13p-card {
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px; overflow: hidden; display: flex; flex-direction: column;
+    transition: border-color 0.3s; flex: 1;
+  }
+  .s13p-card:hover { border-color: rgba(255,205,0,0.25); }
+  .s13p-img-wrap { position: relative; flex-shrink: 0; height: 280px; overflow: hidden; background: #111; }
+  .s13p-img-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .s13p-img-caption {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    background: rgba(0,0,0,0.65); backdrop-filter: blur(4px);
+    padding: 6px 12px; font-size: 11px; color: rgba(255,255,255,0.75); line-height: 1.4;
+  }
+  .s13p-content { flex: 1; display: flex; flex-direction: column; gap: 10px; padding: 16px 18px 18px; overflow: hidden; }
+  .s13p-case-num { font-size: 10px; font-weight: 700; color: rgba(255,205,0,0.5); letter-spacing: 0.12em; text-transform: uppercase; }
+  .s13p-problem { font-size: 12.5px; color: rgba(255,255,255,0.72); line-height: 1.65; }
+  .s13p-spacer { display: none; }
+  .s13p-quote {
+    background: rgba(255,255,255,0.05); border-left: 2px solid var(--yellow);
+    border-radius: 0 6px 6px 0; padding: 7px 12px;
+    font-size: 12px; color: rgba(255,255,255,0.55); line-height: 1.55; font-style: italic;
+  }
+  .s13p-meta { display: flex; flex-direction: column; gap: 4px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.06); margin-top: auto; }
+  .s13p-meta-row { display: flex; gap: 6px; font-size: 11px; }
+  .s13p-meta-label { color: rgba(255,255,255,0.3); min-width: 36px; flex-shrink: 0; }
+  .s13p-meta-value { color: rgba(255,255,255,0.6); line-height: 1.5; }
+
+  /* ============================================================
+     SLIDE 14 — CASE STUDY (痛点3 典型案例)
+  ============================================================ */
+  .s13-body { flex: 1; display: flex; gap: 0; overflow: hidden; }
+  .s13-imgs-col {
+    flex: 0 0 56%; display: flex; gap: 12px; padding: 16px 12px 16px 56px; overflow: hidden;
+  }
+  .s13-img-card {
+    flex: 1; background: var(--white); border: 1px solid var(--border); border-radius: 14px;
+    overflow: hidden; display: flex; flex-direction: column; transition: all 0.3s;
+  }
+  .s13-img-card:hover { border-color: var(--yellow); box-shadow: 0 6px 24px rgba(255,205,0,0.12); transform: translateY(-2px); }
+  .s13-img-card img { width: 100%; flex: 1; object-fit: contain; display: block; background: #f0f0f0; min-height: 0; }
+  .s13-img-card .s13-card-body { padding: 12px 16px; flex-shrink: 0; display: flex; flex-direction: column; gap: 5px; border-top: 1px solid var(--border); }
+  .s13-card-title { font-size: 13px; font-weight: 700; color: var(--text); }
+  .s13-card-desc { font-size: 11px; color: var(--text-2); line-height: 1.6; }
+  .s13-right-col {
+    flex: 1; display: flex; flex-direction: column; gap: 12px;
+    padding: 16px 56px 16px 12px; justify-content: center;
+  }
+  .s13-quote-card {
+    background: var(--dark); border-radius: 14px; padding: 20px 22px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .s13-quote-card .vc-quote { background: rgba(255,255,255,0.05); }
+  .s13-gif-card {
+    background: var(--white); border: 1px solid var(--border); border-radius: 14px;
+    overflow: hidden; flex: 1; display: flex; flex-direction: column; min-height: 0;
+  }
+  .s13-gif-card img { width: 100%; flex: 1; object-fit: contain; display: block; background: #f5f5f5; min-height: 0; }
+  .s13-gif-card .s13-card-body { padding: 10px 16px; flex-shrink: 0; border-top: 1px solid var(--border); }
+
+  /* ============================================================
+     SLIDE 16 — SCENE ADAPTATION CASE
+  ============================================================ */
+  #slide-14 { background: var(--dark); display: flex; flex-direction: column; position: absolute; inset: 0; overflow: hidden; }
+  .s15-body { flex: 1; display: flex; gap: 20px; padding: 20px 56px 28px; overflow: hidden; }
+  .s15-left { flex: 0 0 44%; display: flex; flex-direction: column; gap: 14px; }
+  .s15-right { flex: 1; display: flex; flex-direction: column; gap: 14px; }
+  .s15-case-card {
+    background: var(--white); border: 1px solid var(--border); border-radius: 14px;
+    padding: 20px 22px; display: flex; flex-direction: column; gap: 10px;
+    transition: all 0.3s; flex: 1;
+  }
+  .s15-case-card:hover { border-color: var(--yellow); box-shadow: 0 4px 18px rgba(255,205,0,0.1); }
+  .s15-store-name { font-size: 14px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 6px; }
+  .s15-store-name::before { content: '☕'; font-size: 15px; }
+  .s15-case-desc { font-size: 12px; color: var(--text-2); line-height: 1.7; }
+  .s15-tag { display: inline-flex; align-items: center; gap: 5px; background: rgba(255,71,87,0.08); border: 1px solid rgba(255,71,87,0.18); border-radius: 100px; padding: 3px 10px; font-size: 10px; font-weight: 600; color: #FF4757; width: fit-content; }
+  .s15-insight {
+    background: var(--dark); border-radius: 14px; padding: 22px 24px;
+    display: flex; flex-direction: column; gap: 10px; flex: 1;
+  }
+  .s15-insight-title { font-size: 14px; font-weight: 700; color: var(--white); display: flex; align-items: center; gap: 8px; }
+  .s15-insight-desc { font-size: 12px; color: rgba(255,255,255,0.5); line-height: 1.75; }
+  .s15-action-list { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+  .s15-action-item { display: flex; align-items: flex-start; gap: 10px; font-size: 12px; color: rgba(255,255,255,0.65); line-height: 1.6; }
+  .s15-action-item::before { content: '→'; color: var(--yellow); font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+</style>
+</head>
+<body>
+<!-- Global tooltip portal (outside viewport scale container) -->
+<div id="global-tooltip"></div>
+<!-- Chart tooltip portal (outside scaled viewport) -->
+<div id="chart-tooltip" style="display:none; position:fixed; background:#1a1a2e; color:#fff; border-radius:10px; padding:12px 14px; font-size:12px; line-height:1.7; max-width:200px; box-shadow:0 4px 20px rgba(0,0,0,0.25); pointer-events:none; z-index:9999;">
+  <div id="tooltip-title" style="font-weight:700; font-size:13px; margin-bottom:6px; color:#F5C842;"></div>
+  <div id="tooltip-body"></div>
+</div>
+<style>
+#global-tooltip {
+  display: none;
+  position: fixed;
+  z-index: 99999;
+  pointer-events: none;
+  background: rgba(20,20,30,0.97);
+  border: 1px solid rgba(255,205,0,0.2);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 400;
+  color: rgba(255,255,255,0.85);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  writing-mode: horizontal-tb;
+  word-break: break-word;
+}
+</style>
+<div id="app">
+  <div id="viewport">
+    <div id="progress"></div>
+
+    <!-- ===== SLIDE 1: COVER ===== -->
+    <div class="slide active" id="slide-1">
+      <div class="s1-left">
+        <div class="s1-left-inner">
+          <div class="s1-eyebrow">到餐商家体验管理</div>
+          <h1 class="s1-title">
+            智能点餐<br>
+            <span class="hl">走访洞察</span>报告
+          </h1>
+          <div class="s1-meta">
+            <div class="s1-meta-item">
+              <span class="s1-meta-label">走访时间</span>
+              <span class="s1-meta-value">2026.04.22 – 04.26</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="s1-divider"></div>
+      <div class="s1-right">
+        <div class="s1-vid-wrap vid-wrap" id="vidWrap1">
+          <img class="vc-thumbnail" src="media/cover-photo.png" alt="封面">
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ===== SLIDE TOC: 目录 ===== -->
+    <div class="slide" id="slide-toc" style="background:var(--dark); display:flex; flex-direction:column; align-items:flex-start; justify-content:center; position:absolute; inset:0; overflow:hidden;">
+      <!-- 背景装饰 -->
+      <div style="position:absolute; inset:0; pointer-events:none; overflow:hidden;">
+        <div style="position:absolute; top:-120px; right:-120px; width:480px; height:480px; border-radius:50%; background:radial-gradient(circle, rgba(255,205,0,0.06) 0%, transparent 70%);"></div>
+        <div style="position:absolute; bottom:-80px; left:-80px; width:320px; height:320px; border-radius:50%; background:radial-gradient(circle, rgba(255,205,0,0.04) 0%, transparent 70%);"></div>
+      </div>
+
+      <div style="position:relative; z-index:1; display:flex; flex-direction:column; align-items:flex-start; width:100%; max-width:600px; padding:0 68px;">
+        <!-- 标题 -->
+        <div style="font-size:16px; font-weight:700; letter-spacing:0.14em; color:rgba(255,205,0,0.6); text-transform:uppercase; margin-bottom:28px;">目录 · Contents</div>
+
+        <!-- 条目 1 -->
+        <div style="display:flex; align-items:flex-start; gap:24px; width:100%; padding:24px 0; border-bottom:1px solid rgba(255,255,255,0.08);">
+          <div style="font-size:38px; font-weight:800; color:var(--yellow); line-height:1; flex-shrink:0; width:44px;">一</div>
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <div style="font-size:29px; font-weight:700; color:var(--white); letter-spacing:-0.01em; line-height:1.3;">体验现状</div>
+            <div style="font-size:18px; color:rgba(255,255,255,0.38); line-height:1.5;">走访背景 · 服务量趋势 · 已优化体验问题</div>
+          </div>
+        </div>
+
+        <!-- 条目 2 -->
+        <div style="display:flex; align-items:flex-start; gap:24px; width:100%; padding:24px 0; border-bottom:1px solid rgba(255,255,255,0.08);">
+          <div style="font-size:35px; font-weight:800; color:var(--yellow); line-height:1; flex-shrink:0; width:40px;">二</div>
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <div style="font-size:26px; font-weight:700; color:var(--white); letter-spacing:-0.01em; line-height:1.3;">走访发现</div>
+            <div style="font-size:18px; color:rgba(255,255,255,0.38); line-height:1.5;">商家价值 · 体验问题 · 运营流程问题</div>
+          </div>
+        </div>
+
+        <!-- 条目 3 -->
+        <div style="display:flex; align-items:flex-start; gap:24px; width:100%; padding:24px 0;">
+          <div style="font-size:35px; font-weight:800; color:var(--yellow); line-height:1; flex-shrink:0; width:40px;">三</div>
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <div style="font-size:26px; font-weight:700; color:var(--white); letter-spacing:-0.01em; line-height:1.3;">后续 Todo 跟进</div>
+            <div style="font-size:18px; color:rgba(255,255,255,0.38); line-height:1.5;">产品需求 · 销售运营策略</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SLIDE 1B: BACKGROUND ===== -->
+    <div class="slide" id="slide-1b" style="background:var(--dark); display:flex; flex-direction:column; position:absolute; inset:0; overflow:hidden;">
+      <!-- 背景光晕 -->
+      <div style="position:absolute; top:-120px; left:-80px; width:500px; height:500px; background:radial-gradient(circle, rgba(255,205,0,0.07) 0%, transparent 70%); pointer-events:none;"></div>
+      <div style="position:absolute; bottom:-100px; right:-60px; width:400px; height:400px; background:radial-gradient(circle, rgba(30,144,255,0.06) 0%, transparent 70%); pointer-events:none;"></div>
+
+      <!-- 顶部标题区 -->
+      <div style="padding: 44px 64px 0; flex-shrink:0;">
+        <h2 class="s-ov-title" style="margin-bottom:16px;">智能点餐<span>体验现状</span></h2>
+
+        <p style="font-size:15px; line-height:1.85; color:rgba(255,255,255,0.75); max-width:1100px;">
+          智能点餐于 2025 年 6 月上线，11 月起门店覆盖量快速扩张，商家体验问题随之集中爆发并在 11 月达到峰值，经过产品能力的不断完善与体验问题的持续解决，<strong style="color:var(--white); font-weight:700;">万服已相对峰值下降 50%</strong>。目前已上线 20+ 体验优化相关需求。
+        </p>
+      </div>
+
+      <!-- Tab 区 -->
+      <div style="flex:1; display:flex; flex-direction:column; padding: 0 64px 40px; overflow:hidden;">
+        <!-- Tab 按钮 -->
+        <div style="display:flex; gap:4px; margin-top:20px; margin-bottom:16px; flex-shrink:0;">
+          <button id="tab-btn-trend" onclick="switchTab('trend')"
+            style="padding:7px 20px; border-radius:20px; border:none; cursor:pointer; font-size:13px; font-weight:600; font-family:inherit;
+                   background:var(--yellow); color:var(--dark); transition:all 0.2s;">万服趋势</button>
+          <button id="tab-btn-fixed" onclick="switchTab('fixed')"
+            style="padding:7px 20px; border-radius:20px; border:none; cursor:pointer; font-size:13px; font-weight:600; font-family:inherit;
+                   background:rgba(255,255,255,0.1); color:rgba(255,255,255,0.6); transition:all 0.2s;">已优化体验问题</button>
+        </div>
+
+        <!-- Tab 内容：万服趋势 -->
+        <div id="tab-panel-trend" style="flex:1; display:flex; align-items:center; justify-content:flex-start;">
+          <div style="width:100%; max-width:720px; background:#F5F3EE; border-radius:14px; padding:20px 24px 16px;">
+
+            <!-- 图例 -->
+            <div style="display:flex; gap:20px; margin-bottom:10px; padding-left:4px;">
+              <div style="display:flex; align-items:center; gap:6px; font-size:12px; color:#555;">
+                <span style="display:inline-block; width:22px; height:3px; background:#E8A020; border-radius:2px;"></span>SaaS侧
+              </div>
+              <div style="display:flex; align-items:center; gap:6px; font-size:12px; color:#555;">
+                <span style="display:inline-block; width:22px; height:3px; background:#4A90C4; border-radius:2px;"></span>到餐侧
+              </div>
+            </div>
+
+            <!-- SVG 折线图 -->
+            <div style="position:relative;" id="chart-wrap">
+              <svg id="trend-chart" viewBox="0 0 660 280" style="width:100%; display:block; overflow:visible;" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <linearGradient id="grad-saas" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#E8A020" stop-opacity="0.18"/>
+                    <stop offset="100%" stop-color="#E8A020" stop-opacity="0.02"/>
+                  </linearGradient>
+                  <linearGradient id="grad-dacan" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#4A90C4" stop-opacity="0.15"/>
+                    <stop offset="100%" stop-color="#4A90C4" stop-opacity="0.02"/>
+                  </linearGradient>
+                </defs>
+
+                <!-- 网格线 & Y轴标签 -->
+                <!-- y轴范围 0~55，绘图区 x:48~648, y:16~256，高度240 -->
+                <g id="grid" stroke="#ddd" stroke-width="0.8" stroke-dasharray="4,3">
+                  <line x1="48" y1="256" x2="648" y2="256"/>
+                  <line x1="48" y1="212" x2="648" y2="212"/>
+                  <line x1="48" y1="169" x2="648" y2="169"/>
+                  <line x1="48" y1="125" x2="648" y2="125"/>
+                  <line x1="48" y1="82" x2="648" y2="82"/>
+                  <line x1="48" y1="38" x2="648" y2="38"/>
+                </g>
+                <g font-size="11" fill="#999" text-anchor="end">
+                  <text x="42" y="260">0</text>
+                  <text x="42" y="216">10</text>
+                  <text x="42" y="173">20</text>
+                  <text x="42" y="129">30</text>
+                  <text x="42" y="86">40</text>
+                  <text x="42" y="42">50</text>
+                </g>
+
+                <!-- X轴标签 -->
+                <!-- 7个月份，x间距 = 600/6 = 100，起点 x=48 -->
+                <g font-size="12" fill="#888" text-anchor="middle">
+                  <text x="48"  y="274">10月</text>
+                  <text x="148" y="274">11月</text>
+                  <text x="248" y="274">12月</text>
+                  <text x="348" y="274">1月</text>
+                  <text x="448" y="274">2月</text>
+                  <text x="548" y="274">3月</text>
+                  <text x="648" y="274">4月</text>
+                </g>
+
+                <!-- SaaS侧面积 -->
+                <!-- 数据: 23,46.5,26,17,12,22,18.46 → y = 256 - val*(240/55) -->
+                <!-- y值: 256-100.4=155.6, 256-203.3=52.7, 256-113.5=142.5, 256-74.2=181.8, 256-52.4=203.6, 256-96=160, 256-80.6=175.4 -->
+                <polygon
+                  points="48,155.6 148,52.7 248,142.5 348,181.8 448,203.6 548,160 648,175.4 648,256 48,256"
+                  fill="url(#grad-saas)" stroke="none"/>
+
+                <!-- 到餐侧面积 -->
+                <!-- 数据: 7,10,7,5,4,4.5,4.18 → y = 256 - val*(240/55) -->
+                <!-- y值: 256-30.5=225.5, 256-43.6=212.4, 256-30.5=225.5, 256-21.8=234.2, 256-17.5=238.5, 256-19.6=236.4, 256-18.2=237.8 -->
+                <polygon
+                  points="48,225.5 148,212.4 248,225.5 348,234.2 448,238.5 548,236.4 648,237.8 648,256 48,256"
+                  fill="url(#grad-dacan)" stroke="none"/>
+
+                <!-- SaaS侧折线 -->
+                <polyline id="line-saas"
+                  points="48,155.6 148,52.7 248,142.5 348,181.8 448,203.6 548,160 648,175.4"
+                  fill="none" stroke="#E8A020" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+
+                <!-- 到餐侧折线 -->
+                <polyline id="line-dacan"
+                  points="48,225.5 148,212.4 248,225.5 348,234.2 448,238.5 548,236.4 648,237.8"
+                  fill="none" stroke="#4A90C4" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+
+                <!-- 数据点 & 数值标签 - SaaS侧 -->
+                <g id="dots-saas">
+                  <circle cx="48"  cy="155.6" r="4" fill="#E8A020" stroke="#fff" stroke-width="2"/>
+                  <circle cx="148" cy="52.7"  r="4" fill="#E8A020" stroke="#fff" stroke-width="2"/>
+                  <circle cx="248" cy="142.5" r="4" fill="#E8A020" stroke="#fff" stroke-width="2"/>
+                  <circle cx="348" cy="181.8" r="4" fill="#E8A020" stroke="#fff" stroke-width="2"/>
+                  <circle cx="448" cy="203.6" r="4" fill="#E8A020" stroke="#fff" stroke-width="2"/>
+                  <circle cx="548" cy="160"   r="4" fill="#E8A020" stroke="#fff" stroke-width="2"/>
+                  <circle cx="648" cy="175.4" r="4" fill="#E8A020" stroke="#fff" stroke-width="2"/>
+                </g>
+                <g font-size="11" fill="#C07010" font-weight="600" text-anchor="middle">
+                  <text x="48"  y="148">23</text>
+                  <text x="148" y="45">46.5</text>
+                  <text x="248" y="135">26</text>
+                  <text x="348" y="174">17</text>
+                  <text x="448" y="196">12</text>
+                  <text x="548" y="153">22</text>
+                  <text x="648" y="168">18.46</text>
+                </g>
+
+                <!-- 数据点 & 数值标签 - 到餐侧 -->
+                <g id="dots-dacan">
+                  <circle cx="48"  cy="225.5" r="4" fill="#4A90C4" stroke="#fff" stroke-width="2"/>
+                  <circle cx="148" cy="212.4" r="4" fill="#4A90C4" stroke="#fff" stroke-width="2"/>
+                  <circle cx="248" cy="225.5" r="4" fill="#4A90C4" stroke="#fff" stroke-width="2"/>
+                  <circle cx="348" cy="234.2" r="4" fill="#4A90C4" stroke="#fff" stroke-width="2"/>
+                  <circle cx="448" cy="238.5" r="4" fill="#4A90C4" stroke="#fff" stroke-width="2"/>
+                  <circle cx="548" cy="236.4" r="4" fill="#4A90C4" stroke="#fff" stroke-width="2"/>
+                  <circle cx="648" cy="237.8" r="4" fill="#4A90C4" stroke="#fff" stroke-width="2"/>
+                </g>
+                <g font-size="11" fill="#2A6090" font-weight="600" text-anchor="middle">
+                  <text x="48"  y="242">7</text>
+                  <text x="148" y="229">10</text>
+                  <text x="248" y="242">7</text>
+                  <text x="348" y="250">5</text>
+                  <text x="448" y="254">4</text>
+                  <text x="548" y="252">4.5</text>
+                  <text x="648" y="254">4.18</text>
+                </g>
+
+                <!-- 悬停热区（透明竖条，每月一个） -->
+                <g id="hover-zones">
+                  <rect class="hz" data-month="0" x="0"   y="16" width="98"  height="248" fill="transparent" style="cursor:default;"/>
+                  <rect class="hz" data-month="1" x="98"  y="16" width="100" height="248" fill="transparent" style="cursor:default;"/>
+                  <rect class="hz" data-month="2" x="198" y="16" width="100" height="248" fill="transparent" style="cursor:default;"/>
+                  <rect class="hz" data-month="3" x="298" y="16" width="100" height="248" fill="transparent" style="cursor:default;"/>
+                  <rect class="hz" data-month="4" x="398" y="16" width="100" height="248" fill="transparent" style="cursor:default;"/>
+                  <rect class="hz" data-month="5" x="498" y="16" width="100" height="248" fill="transparent" style="cursor:pointer;"/>
+                  <rect class="hz" data-month="6" x="598" y="16" width="62"  height="248" fill="transparent" style="cursor:default;"/>
+                </g>
+
+                <!-- 悬停竖线（默认隐藏） -->
+                <line id="hover-vline" x1="548" y1="16" x2="548" y2="256"
+                  stroke="#aaa" stroke-width="1" stroke-dasharray="4,3" opacity="0" pointer-events="none"/>
+              </svg>
+
+              <!-- Tooltip 气泡已移至 body 直接子级，见 #chart-tooltip -->
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Tab 内容：已优化体验问题 -->
+        <div id="tab-panel-fixed" style="flex:1; display:none; overflow-y:auto; scrollbar-width:none; -ms-overflow-style:none;">
+          <table style="width:100%; border-collapse:collapse; font-size:13.5px;">
+            <thead>
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.12);">
+                <th style="padding:11px 16px; text-align:left; font-weight:600; color:rgba(255,255,255,0.45); font-size:12px; letter-spacing:0.05em; white-space:nowrap;">问题 / 需求</th>
+                <th style="padding:11px 16px; text-align:left; font-weight:600; color:rgba(255,255,255,0.45); font-size:12px; letter-spacing:0.05em; white-space:nowrap; width:90px;">上线状态</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+                <td style="padding:12px 16px; font-weight:500; color:var(--white);">手机点餐助手可以操作手动结账</td>
+                <td style="padding:12px 16px;"><span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;background:rgba(34,197,94,0.15);color:#4ade80;white-space:nowrap;">已上线</span></td>
+              </tr>
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.06); background:rgba(255,255,255,0.02);">
+                <td style="padding:12px 16px; font-weight:500; color:var(--white);">手机点餐助手可以输入数量和搜索菜品</td>
+                <td style="padding:12px 16px;"><span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;background:rgba(34,197,94,0.15);color:#4ade80;white-space:nowrap;">已上线</span></td>
+              </tr>
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+                <td style="padding:12px 16px; font-weight:500; color:var(--white);">用户端C端点菜时可以输入数量</td>
+                <td style="padding:12px 16px;"><span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;background:rgba(34,197,94,0.15);color:#4ade80;white-space:nowrap;">已上线</span></td>
+              </tr>
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.06); background:rgba(255,255,255,0.02);">
+                <td style="padding:12px 16px; font-weight:500; color:var(--white);">收银机加菜单可以输入数量和搜索菜品</td>
+                <td style="padding:12px 16px;"><span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;background:rgba(34,197,94,0.15);color:#4ade80;white-space:nowrap;">已上线</span></td>
+              </tr>
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+                <td style="padding:12px 16px; font-weight:500; color:var(--white);">收银桌台&小票支持展示菜品减价后总价格，团购按照售价进行展示</td>
+                <td style="padding:12px 16px;"><span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;background:rgba(34,197,94,0.15);color:#4ade80;white-space:nowrap;">已上线</span></td>
+              </tr>
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.06); background:rgba(255,255,255,0.02);">
+                <td style="padding:12px 16px; font-weight:500; color:var(--white);">必点菜多少点优化</td>
+                <td style="padding:12px 16px;"><span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;background:rgba(34,197,94,0.15);color:#4ade80;white-space:nowrap;">已上线</span></td>
+              </tr>
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+                <td style="padding:12px 16px; font-weight:500; color:var(--white);">智能点餐后付订单单支持仅点餐，前台结账</td>
+                <td style="padding:12px 16px;"><span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;background:rgba(34,197,94,0.15);color:#4ade80;white-space:nowrap;">已上线</span></td>
+              </tr>
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.06); background:rgba(255,255,255,0.02);">
+                <td style="padding:12px 16px; font-weight:500; color:var(--white);">撤单支持打印退菜单</td>
+                <td style="padding:12px 16px;"><span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;background:rgba(34,197,94,0.15);color:#4ade80;white-space:nowrap;">已上线</span></td>
+              </tr>
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+                <td style="padding:12px 16px; font-weight:500; color:var(--white);">无saas支持选择堂食or打包</td>
+                <td style="padding:12px 16px;"><span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;background:rgba(34,197,94,0.15);color:#4ade80;white-space:nowrap;">已上线</span></td>
+              </tr>
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.06); background:rgba(255,255,255,0.02);">
+                <td style="padding:12px 16px; font-weight:500; color:var(--white);">支持商家加菜选择隐藏菜</td>
+                <td style="padding:12px 16px;"><span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;background:rgba(34,197,94,0.15);color:#4ade80;white-space:nowrap;">已上线</span></td>
+              </tr>
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+                <td style="padding:12px 16px; font-weight:500; color:var(--white);">收银点餐助手支持加菜/退菜/转单</td>
+                <td style="padding:12px 16px;"><span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;background:rgba(34,197,94,0.15);color:#4ade80;white-space:nowrap;">已上线</span></td>
+              </tr>
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.06); background:rgba(255,255,255,0.02);">
+                <td style="padding:12px 16px; font-weight:500; color:var(--white);">有saas限制非营业时间内不可点餐</td>
+                <td style="padding:12px 16px;"><span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;background:rgba(34,197,94,0.15);color:#4ade80;white-space:nowrap;">已上线</span></td>
+              </tr>
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+                <td style="padding:12px 16px; font-weight:500; color:var(--white);">收银机智能点餐订单页面可以搜索桌号等操作订单加菜、退菜等</td>
+                <td style="padding:12px 16px;"><span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;background:rgba(34,197,94,0.15);color:#4ade80;white-space:nowrap;">已上线</span></td>
+              </tr>
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.06); background:rgba(255,255,255,0.02);">
+                <td style="padding:12px 16px; font-weight:500; color:var(--white);">收银机小票下单时间支持按照加菜下单时间展示</td>
+                <td style="padding:12px 16px;"><span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;background:rgba(34,197,94,0.15);color:#4ade80;white-space:nowrap;">已上线</span></td>
+              </tr>
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+                <td style="padding:12px 16px; font-weight:500; color:var(--white);">多人点餐订单，支持手动结账</td>
+                <td style="padding:12px 16px;"><span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;background:rgba(34,197,94,0.15);color:#4ade80;white-space:nowrap;">已上线</span></td>
+              </tr>
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.06); background:rgba(255,255,255,0.02);">
+                <td style="padding:12px 16px; font-weight:500; color:var(--white);">加料/做法支持m选（多选）</td>
+                <td style="padding:12px 16px;"><span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;background:rgba(34,197,94,0.15);color:#4ade80;white-space:nowrap;">已上线</span></td>
+              </tr>
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+                <td style="padding:12px 16px; font-weight:500; color:var(--white);">支持展示时段菜单</td>
+                <td style="padding:12px 16px;"><span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;background:rgba(34,197,94,0.15);color:#4ade80;white-space:nowrap;">已上线</span></td>
+              </tr>
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.06); background:rgba(255,255,255,0.02);">
+                <td style="padding:12px 16px; font-weight:500; color:var(--white);">智能点餐货架页支持用户搜索菜品</td>
+                <td style="padding:12px 16px;"><span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;background:rgba(34,197,94,0.15);color:#4ade80;white-space:nowrap;">已上线</span></td>
+              </tr>
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+                <td style="padding:12px 16px; font-weight:500; color:var(--white);">智能点餐货架页面支持不同颜色皮肤样式</td>
+                <td style="padding:12px 16px;"><span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;background:rgba(34,197,94,0.15);color:#4ade80;white-space:nowrap;">已上线</span></td>
+              </tr>
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.06); background:rgba(255,255,255,0.02);">
+                <td style="padding:12px 16px; font-weight:500; color:var(--white);">后付模式下，已购券支持下单即核销</td>
+                <td style="padding:12px 16px;"><span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;background:rgba(34,197,94,0.15);color:#4ade80;white-space:nowrap;">已上线</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <script src="slide-a.js" defer></script>
+    </div>
+
+    <!-- ===== SLIDE 2: OVERVIEW ===== -->
+    <div class="slide" id="slide-2">
+      <div class="s-ov-wrap">
+        <div class="s-ov-left">
+          <!-- 标题 + meta 竖排 -->
+          <div style="display:flex; flex-direction:column; gap:16px;">
+            <div>
+              <div class="section-eyebrow">走访概况</div>
+              <h2 class="s-ov-title" style="margin:6px 0 0;">本次走访<span>基本信息</span></h2>
+            </div>
+            <!-- meta 信息横排，放在标题下方 -->
+            <div class="s-ov-meta-list" style="flex-direction:row; gap:48px; flex-shrink:0;">
+              <div class="s-ov-meta-item">
+                <span class="s-ov-meta-label">走访时间</span>
+                <span class="s-ov-meta-value">2026-04-24 ～ 2026-04-26</span>
+              </div>
+              <div class="s-ov-meta-item">
+                <span class="s-ov-meta-label">走访战区</span>
+                <span class="s-ov-meta-value">深圳 · 共 17 个门店（4个区域品牌，13个蜂窝）</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="s-ov-right">
+          <div class="s-ov-card-grid">
+            <div class="s-ov-card">
+              <div class="s-ov-card-icon">🍜</div>
+              <div class="s-ov-card-body">
+                <div class="s-ov-card-label">餐饮品类</div>
+                <div class="s-ov-card-value">覆盖 11 个二级品类</div>
+                <div class="s-ov-card-sub">
+                  <span class="s-ov-tag" style="white-space:nowrap;">小吃 · 西餐 · 地方菜 · 饮品 · 火锅 · 烤肉等</span>
+                </div>
+              </div>
+            </div>
+            <div class="s-ov-card">
+              <div class="s-ov-card-icon">💳</div>
+              <div class="s-ov-card-body">
+                <div class="s-ov-card-label">支付模式</div>
+                <div class="s-ov-card-value">先付 / 后付 / 无 SaaS</div>
+                <div class="s-ov-card-sub">
+                  <span class="s-ov-tag" style="white-space:nowrap;">先付 4 · 后付 12 · 无 SaaS 2</span>
+                </div>
+              </div>
+            </div>
+            <div class="s-ov-card">
+              <div class="s-ov-card-icon">📊</div>
+              <div class="s-ov-card-body">
+                <div class="s-ov-card-label">点餐台次渗透率<span class="s-ov-tooltip-wrap"><span class="s-ov-q">?</span><span class="s-ov-tooltip-box">当前展示为钱包份额，衡量点餐码动销情况：产生点餐订单的总台次 / 同期内门店堂食总台次</span></span></div>
+                <div class="s-ov-card-value">覆盖不同点餐台次渗透率</div>
+                <div class="s-ov-card-sub">
+                  <span class="s-ov-tag" style="white-space:nowrap;">50% 以上（60%）· 50% 以下（40%）</span>
+                </div>
+              </div>
+            </div>
+            <div class="s-ov-card">
+              <div class="s-ov-card-icon">🪑</div>
+              <div class="s-ov-card-body">
+                <div class="s-ov-card-label">桌台动销率<span class="s-ov-tooltip-wrap"><span class="s-ov-q">?</span><span class="s-ov-tooltip-box">铺设点餐码的桌台数 / 总桌台数</span></span></div>
+                <div class="s-ov-card-value">覆盖不同桌台动销率</div>
+                <div class="s-ov-card-sub">
+                  <span class="s-ov-tag" style="white-space:nowrap;">50% 以上（50%）· 50% 以下（50%）</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SLIDE 3: CORE CONCLUSION OVERVIEW ===== -->
+    <div class="slide" id="slide-3">
+      <div class="s2-header">
+        <div class="section-eyebrow">走访结论</div>
+        <h2 class="s2-title">核心结论<span>概述</span></h2>
+      </div>
+      <div class="s3-summary-list">
+        <div class="s3-summary-row s3-summary-row--green">
+          <div class="s3-summary-left">
+            <div class="s3-summary-icon">✅</div>
+            <div class="s3-summary-meta">
+              <div class="s3-summary-label">正向价值反馈</div>
+              <div class="s3-summary-count">4 项</div>
+            </div>
+          </div>
+          <div class="s3-summary-divider"></div>
+          <div class="s3-summary-desc">商家对核心价值有明确感知</div>
+        </div>
+        <div class="s3-summary-row s3-summary-row--orange">
+          <div class="s3-summary-left">
+            <div class="s3-summary-icon">⚠️</div>
+            <div class="s3-summary-meta">
+              <div class="s3-summary-label">核心体验问题</div>
+              <div class="s3-summary-count">8 项</div>
+            </div>
+          </div>
+          <div class="s3-summary-divider"></div>
+          <div class="s3-summary-desc">问题影响已明确，产品方案预计 6 月底落地</div>
+        </div>
+        <div class="s3-summary-row s3-summary-row--red">
+          <div class="s3-summary-left">
+            <div class="s3-summary-icon">🔍</div>
+            <div class="s3-summary-meta">
+              <div class="s3-summary-label">痛点洞察与发现</div>
+              <div class="s3-summary-count">3 项</div>
+            </div>
+          </div>
+          <div class="s3-summary-divider"></div>
+          <div class="s3-summary-desc">聚焦运营与流程问题</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SLIDE 3: POSITIVE VALUE ===== -->
+    <div class="slide" id="slide-4">
+      <div class="s3-left">
+        <div class="s3-section-tag">正向价值反馈</div>
+        <h2 class="s3-left-title">智能点餐<br>给商家带来的<span>价值</span></h2>
+        <p class="s3-left-sub">基于深圳战区 17 家门店走访反馈，商家对智能点餐的正向价值已有明确感知，并提及产品的更新速度相对较快</p>
+        <div class="s3-stats">
+          <div class="s3-stat">
+            <div class="s3-stat-num">17</div>
+            <div class="s3-stat-label">走访门店</div>
+          </div>
+          <div class="s3-stat">
+            <div class="s3-stat-num">4</div>
+            <div class="s3-stat-label">正向价值项</div>
+          </div>
+          <div class="s3-stat">
+            <div class="s3-stat-num">9</div>
+            <div class="s3-stat-label">门店明确提及</div>
+          </div>
+        </div>
+      </div>
+      <div class="s3-divider"></div>
+      <div class="s3-right">
+        <div class="s3-right-label">商家明确提及的正向价值</div>
+        <div class="value-row">
+          <div class="value-row-icon">🍽️</div>
+          <div class="value-row-body">
+            <div class="value-row-title">减少了点后的撤菜</div>
+            <div class="value-row-desc">"现在撤菜取消的情况明显减少了"</div>
+          </div>
+          <div class="value-row-badge">1 家门店</div>
+        </div>
+        <div class="value-row">
+          <div class="value-row-icon">⚡</div>
+          <div class="value-row-body">
+            <div class="value-row-title">提升了收单效率</div>
+            <div class="value-row-desc">"高峰期的收单速度比之前加快很多"</div>
+          </div>
+          <div class="value-row-badge">3 家门店</div>
+        </div>
+        <div class="value-row">
+          <div class="value-row-icon">👥</div>
+          <div class="value-row-body">
+            <div class="value-row-title">减少了服务员人力</div>
+            <div class="value-row-desc">"之前需要一个人来验券，这个功能至少能帮我们省去一个服务员"</div>
+          </div>
+          <div class="value-row-badge">1 家门店</div>
+        </div>
+        <div class="value-row">
+          <div class="value-row-icon">📈</div>
+          <div class="value-row-body">
+            <div class="value-row-title">提升了榜单表现</div>
+            <div class="value-row-desc">"榜单数据提升还是挺快的"</div>
+          </div>
+          <div class="value-row-badge">4 家门店</div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ===== SLIDE NEW: EXPERIENCE GAP OVERVIEW ===== -->
+    <div class="slide" id="slide-5">
+      <div class="s3-left s3-left--dark">
+        <div class="s3-section-tag">核心体验问题</div>
+        <h2 class="s3-left-title" style="font-size:26px;">体验问题已在全力解决中，<span>产品方案预计 6 月底前上线</span></h2>
+        <p class="s3-left-sub">商家反馈与原扫码点餐使用习惯有较大的差异</p>
+        <div class="s3-stats s3-stats--dark">
+          <div class="s3-stat">
+            <div class="s3-stat-num s3-stat-num--orange">5</div>
+            <div class="s3-stat-label">TOP 功能缺失</div>
+          </div>
+          <div class="s3-stat">
+            <div class="s3-stat-num s3-stat-num--orange">3</div>
+            <div class="s3-stat-label">TOP 交互痛点</div>
+          </div>
+        </div>
+      </div>
+      <div class="s3-divider"></div>
+      <div class="s3-right s3-right--dark" style="overflow-y:auto; gap:12px; padding:18px 24px;">
+        <div class="gap-block">
+          <div class="gap-section-header">
+            <span class="gap-section-title">Top缺失功能</span>
+          </div>
+          <table class="gap-table">
+            <thead>
+              <tr>
+                <th class="gap-th gap-th--problem">问题</th>
+                <th class="gap-th gap-th--date">预计上线</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="gap-tr"><td class="gap-td gap-td--problem">转台功能缺失</td><td class="gap-td gap-td--date">6.29</td></tr>
+              <tr class="gap-tr"><td class="gap-td gap-td--problem">手机点餐助手功能缺失（不支持搜索菜品、加备注、开发票等）</td><td class="gap-td gap-td--date">7月</td></tr>
+              <tr class="gap-tr"><td class="gap-td gap-td--problem">会员相关能力缺失</td><td class="gap-td gap-td--date">5.26</td></tr>
+              <tr class="gap-tr"><td class="gap-td gap-td--problem">预结单/结账单信息核对困难</td><td class="gap-td gap-td--date">6.29</td></tr>
+              <tr class="gap-tr"><td class="gap-td gap-td--problem">称重菜选项缺失</td><td class="gap-td gap-td--date">5.25</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="gap-block" style="margin-top:16px;">
+          <div class="gap-section-header">
+            <span class="gap-section-title">Top 3 交互痛点</span>
+          </div>
+          <table class="gap-table">
+            <thead>
+              <tr>
+                <th class="gap-th gap-th--problem">问题</th>
+                <th class="gap-th gap-th--date">预计上线</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="gap-tr"><td class="gap-td gap-td--problem">加菜退菜流程步骤多操作不便，且加载速度较慢</td><td class="gap-td gap-td--date">6.29</td></tr>
+              <tr class="gap-tr"><td class="gap-td gap-td--problem">必点菜设置问题导致餐位费重复计算</td><td class="gap-td gap-td--date">5.12</td></tr>
+              <tr class="gap-tr"><td class="gap-td gap-td--problem">转单流程原支付退回不符合预期（阶段性问题）</td><td class="gap-td gap-td--date">6.29</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <!-- ===== SLIDE 8: VIDEO CASE 1 ===== -->
+    <div class="slide video-case-slide" id="slide-6">
+      <div class="vc-body">
+        <div class="vc-video-col">
+          <div class="vid-wrap" id="vidWrap2">
+            <video id="vid2" src="media/media1.mp4" preload="metadata" playsinline poster="media/image2.png"></video>
+            <button class="vid-play-btn" id="playBtn2" onclick="toggleVid(2)" title="播放视频">
+              <svg class="icon-play" viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg>
+              <svg class="icon-pause" viewBox="0 0 24 24"><rect x="5" y="3" width="4" height="18"/><rect x="15" y="3" width="4" height="18"/></svg>
+            </button>
+            <div class="vid-controls">
+              <div class="vid-prog-wrap" onclick="seekVid(2,event)"><div class="vid-prog-bar" id="prog2"></div></div>
+              <span class="vid-time" id="time2">0:00 / 0:00</span>
+            </div>
+          </div>
+        </div>
+        <div class="vc-info-col">
+          <div class="vc-pain-label">核心问题</div>
+          <div class="vc-pain-title">加菜流程和速度<span>慢于</span><br>原有系统</div>
+          <div class="vc-pain-desc">商家反映<strong style="color:var(--yellow);">加菜流程和页面加载速度</strong>慢于原有收银系统。</div>
+          <div class="vc-quote" style="display:flex; align-items:flex-start; gap:8px; background:rgba(255,205,0,0.07); border:1px solid rgba(255,205,0,0.2); border-radius:10px; padding:12px 16px;">
+            <div style="font-size:36px; line-height:1; color:var(--yellow); font-family:Georgia,serif; flex-shrink:0; opacity:1;">&#x201C;</div>
+            <div style="font-size:13.5px; font-weight:700; color:var(--yellow); line-height:1.55; flex:1;">每一步都要等，高峰期效率受影响</div>
+            <div style="font-size:36px; line-height:1; color:var(--yellow); font-family:Georgia,serif; flex-shrink:0; align-self:flex-end; opacity:1;">&#x201D;</div>
+          </div>
+          <div class="vc-progress">
+            <div class="vc-progress-label">解决进展</div>
+            <div class="vc-progress-text">预计 <span class="vc-progress-date">6 月底上线</span>。同时在上线前<strong style="color:var(--yellow);">持续优化性能，在6月中前再提高加载速度3s</strong>。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SLIDE 9: VIDEO CASE 2 ===== -->
+    <div class="slide video-case-slide" id="slide-7">
+      <div class="vc-body">
+        <div class="vc-video-col">
+          <div class="vid-wrap" id="vidWrap3">
+            <video id="vid3" src="media/media2.mp4" preload="metadata" playsinline poster="media/image3.png"></video>
+            <button class="vid-play-btn" id="playBtn3" onclick="toggleVid(3)" title="播放视频">
+              <svg class="icon-play" viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg>
+              <svg class="icon-pause" viewBox="0 0 24 24"><rect x="5" y="3" width="4" height="18"/><rect x="15" y="3" width="4" height="18"/></svg>
+            </button>
+            <div class="vid-controls">
+              <div class="vid-prog-wrap" onclick="seekVid(3,event)"><div class="vid-prog-bar" id="prog3"></div></div>
+              <span class="vid-time" id="time3">0:00 / 0:00</span>
+            </div>
+          </div>
+        </div>
+        <div class="vc-info-col">
+          <div class="vc-pain-label">核心问题</div>
+          <div class="vc-pain-title">转单/转台无法保留原订单，<br>顾客需要<span>重新支付</span></div>
+          <div class="vc-pain-desc">商家反馈转单后无法保留原订单，操作较为繁琐。</div>
+          <div class="vc-quote" style="display:flex; align-items:flex-start; gap:8px; background:rgba(255,205,0,0.07); border:1px solid rgba(255,205,0,0.2); border-radius:10px; padding:12px 16px;">
+            <div style="font-size:36px; line-height:1; color:var(--yellow); font-family:Georgia,serif; flex-shrink:0; opacity:1;">&#x201C;</div>
+            <div style="font-size:13.5px; font-weight:700; color:var(--yellow); line-height:1.55; flex:1;">每次转单转台，买了的券儿都自动退了。顾客就需要重新支付一次，我们得重新点一次，比较麻烦</div>
+            <div style="font-size:36px; line-height:1; color:var(--yellow); font-family:Georgia,serif; flex-shrink:0; align-self:flex-end; opacity:1;">&#x201D;</div>
+          </div>
+          <div class="vc-progress">
+            <div class="vc-progress-label">解决进展</div>
+            <div class="vc-progress-text">两系统订单融合后，转单体验问题将得到解决，转单为<span class="vc-progress-date">阶段性体验痛点</span>。转台能力将在 <span class="vc-progress-date">6 月底上线</span>。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SLIDE 10: VIDEO CASE 3 ===== -->
+    <div class="slide video-case-slide" id="slide-8">
+      <div class="vc-body">
+        <div class="vc-video-col">
+          <div class="vid-wrap" id="vidWrap4">
+            <video id="vid4" src="media/media3.mp4" preload="metadata" playsinline poster="media/image4.png"></video>
+            <button class="vid-play-btn" id="playBtn4" onclick="toggleVid(4)" title="播放视频">
+              <svg class="icon-play" viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg>
+              <svg class="icon-pause" viewBox="0 0 24 24"><rect x="5" y="3" width="4" height="18"/><rect x="15" y="3" width="4" height="18"/></svg>
+            </button>
+            <div class="vid-controls">
+              <div class="vid-prog-wrap" onclick="seekVid(4,event)"><div class="vid-prog-bar" id="prog4"></div></div>
+              <span class="vid-time" id="time4">0:00 / 0:00</span>
+            </div>
+          </div>
+        </div>
+        <div class="vc-info-col">
+          <div class="vc-pain-label">核心问题</div>
+          <div class="vc-pain-title">服务员高频使用SaaS移动端点餐助手<br>但<span>缺少菜品搜索</span>，只能滑动翻找</div>
+          <div class="vc-pain-desc">点餐助手与收银台联动使用，尤其在顾客比如吃小龙虾时，不方便手机下单，需要服务员帮忙下单，手机助手功能不全会影响操作的效率。</div>
+          <div class="vc-quote" style="display:flex; align-items:flex-start; gap:8px; background:rgba(255,205,0,0.07); border:1px solid rgba(255,205,0,0.2); border-radius:10px; padding:12px 16px;">
+            <div style="font-size:36px; line-height:1; color:var(--yellow); font-family:Georgia,serif; flex-shrink:0; opacity:1;">&#x201C;</div>
+            <div style="font-size:13.5px; font-weight:700; color:var(--yellow); line-height:1.55; flex:1;">这么多菜，翻了四页了，我怎么知道要在哪个里面找？</div>
+            <div style="font-size:36px; line-height:1; color:var(--yellow); font-family:Georgia,serif; flex-shrink:0; align-self:flex-end; opacity:1;">&#x201D;</div>
+          </div>
+          <div class="vc-progress">
+            <div class="vc-progress-label">解决进展</div>
+            <div class="vc-progress-text">已补足加菜退菜、手动结账等能力。搜索、备注、赠菜等预计 <span class="vc-progress-date">7 月上线</span>。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SLIDE: PAIN INSIGHT OVERVIEW ===== -->
+    <div class="slide" id="slide-10">
+      <div class="s3-left">
+        <div class="s3-section-tag">痛点洞察与发现</div>
+        <h2 class="s3-left-title">流程与运营问题</h2>
+      </div>
+      <div class="s3-divider"></div>
+      <div class="s3-right">
+        <div class="s3-right-label">核心发现</div>
+        <div class="value-row">
+          <div class="value-row-icon">⚙️</div>
+          <div class="value-row-body">
+            <div class="value-row-title">核心流程缺少推荐配置建议，依赖商家反复摸索</div>
+            <div class="value-row-desc">"结账根本没法用"　其实是商家没有完成前置关联配置</div>
+          </div>
+        </div>
+        <div class="value-row">
+          <div class="value-row-icon">📢</div>
+          <div class="value-row-body">
+            <div class="value-row-title">产品复杂度高，迭代快，知识库体量大，销售学习难度高</div>
+            <div class="value-row-desc">"很难找到更新的内容"</div>
+          </div>
+        </div>
+        <div class="value-row">
+          <div class="value-row-icon">🎯</div>
+          <div class="value-row-body">
+            <div class="value-row-title">部分商家场景不适配，存在点餐码闲置</div>
+            <div class="value-row-desc">"不支持饮品选冷热"</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SLIDE 11: INSIGHT 1 DETAIL ===== -->
+    <div class="slide" id="slide-11">
+      <div class="ins-layout">
+        <!-- 左侧 -->
+        <div class="ins-left ins-left--dark">
+          <div class="ins-eyebrow">发现一</div>
+          <h2 class="ins-title">开通后，缺少推荐配置建议，<span>依赖商家反复摸索</span></h2>
+          <div class="ins-case-block">
+            <div class="ins-case-label">商家问题</div>
+            <div class="ins-case-text">商家反馈结账时顾客无法在收银台完成支付。定位后发现是商家未完成小票二维码配置这一前置步骤，导致<strong style="color:var(--white);">商家误判结账功能不能用</strong>。</div>
+          </div>
+          <div class="ins-voice-block" style="align-items:flex-start;">
+            <div class="ins-voice-mark">&#x201C;</div>
+            <div class="ins-voice-content">
+              <div class="ins-voice-text">智能点餐给我们是节省服务员的，但是不能结账啊，这家门店先试跑，跑不起来</div>
+              <div class="ins-voice-tag">商家原声 · 呐咪傣园 · 云南菜</div>
+            </div>
+            <div class="ins-voice-mark" style="align-self:flex-end; margin-top:0; margin-bottom:4px;">&#x201D;</div>
+          </div>
+          <div class="ins-opt-block">
+            <div class="ins-opt-label">💡 部分洞察</div>
+            <div class="ins-opt-text">商家需依次开通在线支付、设置小票打印等多项开关，环节多、易遗漏，<strong style="color:#fff;">可以考虑将结账流程相关的配置项合并为一键设置。</strong></div>
+          </div>
+        </div>
+        <!-- 右侧：图片 -->
+        <div class="ins-right" style="padding:0; overflow:hidden;">
+          <div class="ins-img-wrap" style="height:100%; border-radius:0;">
+            <img src="media/image6.jpeg" alt="小票设置案例" style="object-fit:cover; object-position:center 70%; width:100%; height:100%;">
+            <div class="ins11-img-label ins11-img-label--left" style="top:16px; left:16px;">设置二维码后可正常结账</div>
+            <div class="ins11-img-label ins11-img-label--right" style="top:16px; right:16px;">未设置二维码</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ===== SLIDE 13: CASE STUDY (痛点3) ===== -->
+    <div class="slide" id="slide-12">
+      <div class="ins-layout">
+        <!-- 左侧 -->
+        <div class="ins-left">
+          <div class="ins-eyebrow">发现二</div>
+          <h2 class="ins-title">产品复杂度高，迭代快，知识库体量大，<span>销售学习难度高</span></h2>
+          <div class="ins-case-block">
+            <div class="ins-case-label">当前现状</div>
+            <div class="ins-case-text">产品本身的复杂程度高，信息透传有较大压力。当前上了答疑群、TT等非常多的答疑手段，7天每天9~24答疑。</div>
+          </div>
+          <div class="ins-voice-block" style="align-items:flex-start;">
+            <div class="ins-voice-mark">&#x201C;</div>
+            <div class="ins-voice-content">
+              <div class="ins-voice-text">移动设备上查看FAQ卡死打不开，难找到更新的功能内容</div>
+            </div>
+            <div class="ins-voice-mark" style="align-self:flex-end; margin-top:0; margin-bottom:4px;">&#x201D;</div>
+          </div>
+            <div class="ins-opt-block">
+            <div class="ins-opt-label">💡 部分洞察</div>
+            <div class="ins-opt-text">
+              更多采用AI问答能力，降低知识获取门槛。以便更清晰地向商家传达。
+            </div>
+          </div>
+        </div>
+        <!-- 右侧：FAQ 图片 -->
+        <div class="ins-right ins-right--cards">
+          <div class="ins-faq-img-card" style="max-height: 420px;">
+            <img src="media/image8.gif" alt="FAQ示意">
+            <div class="ins-faq-img-caption">
+              <div class="ins-faq-stat">FAQ现状：10122行 · 146个标题 · 1835个段落 · 87个表格</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SLIDE 14: INSIGHT 3 ===== -->
+    <div class="slide" id="slide-14">
+      <div class="ins-layout">
+        <!-- 左侧 -->
+        <div class="ins-left">
+          <div class="ins-eyebrow">发现三</div>
+          <h2 class="ins-title">部分场景不适配，<span>存在铺码后闲置</span></h2>
+          <div class="ins-case-block">
+            <div class="ins-case-label">场景问题</div>
+            <div class="ins-case-text">咖啡店商家以"到店取"模式为主，在销售推荐后上线了智能点餐，但发现并不能满足自己的需求，比如用户点餐不能自己选择冷热，商家认为"产品功能不完善"。（已上线，但商家功能未配置）</div>
+          </div>
+          <div class="ins-voice-block" style="align-items:flex-start;">
+            <div class="ins-voice-mark">&#x201C;</div>
+            <div class="ins-voice-content">
+              <div class="ins-voice-text">我就是想弄一个码，让客人自己点咖啡，我给他做……但是没用起来</div>
+              <div class="ins-voice-tag">商家原声 · aroma coffee</div>
+            </div>
+            <div class="ins-voice-mark" style="align-self:flex-end; margin-top:0; margin-bottom:4px;">&#x201D;</div>
+          </div>
+          <div class="ins-opt-block">
+            <div class="ins-opt-label">💡 部分洞察</div>
+            <div class="ins-opt-text">当前上线智能点餐的饮品类商家占比5%，其中无SaaS占比47.2%。相比之下，秒提可能会更适配商家经营场景。秒提轻量版能力4月已经上线，目前覆盖主攻是cka品牌，蜂窝以销售主动申请为主。未来到店取场景，推荐用轻量化秒提。</div>
+          </div>
+        </div>
+        <!-- 右侧：aroma coffee 截图 -->
+        <div class="ins-right">
+          <div class="ins-img-wrap">
+            <img src="media/aroma-coffee.png" alt="aroma coffee 点餐界面" style="object-fit: contain; background: transparent;">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SLIDE 15: TODO ===== -->
+    <div class="slide" id="slide-15" style="flex-direction:column; background:var(--surface);">
+      <!-- 顶部标题栏 -->
+      <div style="flex:0 0 auto; background:var(--dark); padding:32px 56px 28px; display:flex; flex-direction:column; gap:8px; border-bottom:1px solid rgba(255,255,255,0.07);">
+        <span class="s3-section-tag" style="margin-bottom:0;">后续 Todo</span>
+        <h2 style="font-size:26px; font-weight:800; color:var(--white); letter-spacing:-0.02em; margin:0; line-height:1.3;">
+          重点跟进<span style="color:var(--yellow);">核心策略的上线</span>与效果验证
+        </h2>
+        <p style="font-size:13px; color:rgba(255,255,255,0.42); margin:0; line-height:1.6;">持续追踪已识别问题的落地进展，确保产品迭代真正改善商家体验</p>
+      </div>
+
+      <!-- 合并表格区 -->
+      <div style="flex:1; padding:16px 40px 20px; overflow-y:auto; scrollbar-width:none; -ms-overflow-style:none;">
+        <table style="width:100%; border-collapse:collapse; font-size:12.5px;">
+          <thead>
+            <tr style="border-bottom:2px solid var(--border);">
+              <th style="padding:7px 10px; font-size:11px; font-weight:700; color:var(--text-3); text-align:center; letter-spacing:0.06em; white-space:nowrap; border-right:2px solid var(--border);">分类</th>
+              <th style="padding:7px 10px; font-size:11px; font-weight:700; color:var(--text-3); text-align:left; letter-spacing:0.06em; white-space:nowrap;">问题</th>
+              <th style="padding:7px 10px; font-size:11px; font-weight:700; color:var(--text-3); text-align:left; letter-spacing:0.06em; white-space:nowrap; border-right:1px solid var(--border);">解决方案与进展</th>
+              <th style="padding:7px 10px; font-size:11px; font-weight:700; color:var(--text-3); text-align:left; letter-spacing:0.06em; white-space:nowrap;">涉及团队</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- 功能缺失 1/5 -->
+            <tr style="border-bottom:1px solid var(--border);">
+              <td rowspan="5" style="padding:8px 10px; font-size:11px; font-weight:700; letter-spacing:0.04em; text-align:center; vertical-align:middle; border-right:2px solid var(--border); color:#444; background:#f9f9f9;">功能缺失</td>
+              <td style="padding:8px 10px; color:var(--text); line-height:1.5; vertical-align:top;">转台功能缺失</td>
+              <td style="padding:8px 10px; color:var(--text-2); line-height:1.5; vertical-align:top; border-right:1px solid var(--border);">预计 6.29 上线</td>
+              <td rowspan="8" style="padding:8px 10px; vertical-align:middle; text-align:left;"><span style="border:1px solid #ccc; background:#f5f5f5; color:#444; border-radius:4px; padding:2px 7px; font-size:11px; white-space:nowrap; display:inline-block;">SaaS产研</span><span style="margin-left:3px;border:1px solid #ccc; background:#f5f5f5; color:#444; border-radius:4px; padding:2px 7px; font-size:11px; white-space:nowrap; display:inline-block;">到餐产研</span></td>
+            </tr>
+            <!-- 功能缺失 2/5 -->
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:8px 10px; color:var(--text); line-height:1.5; vertical-align:top;">手机点餐助手功能缺失</td>
+              <td style="padding:8px 10px; color:var(--text-2); line-height:1.5; vertical-align:top; border-right:1px solid var(--border);">预计 7 月上线</td>
+            </tr>
+            <!-- 功能缺失 3/5 -->
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:8px 10px; color:var(--text); line-height:1.5; vertical-align:top;">会员相关能力缺失</td>
+              <td style="padding:8px 10px; color:var(--text-2); line-height:1.5; vertical-align:top; border-right:1px solid var(--border);">预计 5.26 上线</td>
+            </tr>
+            <!-- 功能缺失 4/5 -->
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:8px 10px; color:var(--text); line-height:1.5; vertical-align:top;">预结单/结账单信息核对困难</td>
+              <td style="padding:8px 10px; color:var(--text-2); line-height:1.5; vertical-align:top; border-right:1px solid var(--border);">预计 6.29 上线</td>
+            </tr>
+            <!-- 功能缺失 5/5 -->
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:8px 10px; color:var(--text); line-height:1.5; vertical-align:top;">称重菜选项缺失</td>
+              <td style="padding:8px 10px; color:var(--text-2); line-height:1.5; vertical-align:top; border-right:1px solid var(--border);">预计 5.25 上线</td>
+            </tr>
+            <!-- 交互优化 1/3 -->
+            <tr style="border-bottom:1px solid var(--border);">
+              <td rowspan="3" style="padding:8px 10px; font-size:11px; font-weight:700; letter-spacing:0.04em; text-align:center; vertical-align:middle; border-right:2px solid var(--border); color:#444; background:#f9f9f9;">交互优化</td>
+              <td style="padding:8px 10px; color:var(--text); line-height:1.5; vertical-align:top;">加菜退菜流程步骤多操作不便，且加载速度较慢</td>
+              <td style="padding:8px 10px; color:var(--text-2); line-height:1.5; vertical-align:top; border-right:1px solid var(--border);">预计 6.29 上线</td>
+            </tr>
+            <!-- 交互优化 2/3 -->
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:8px 10px; color:var(--text); line-height:1.5; vertical-align:top;">必点菜设置导致餐位费重复计算</td>
+              <td style="padding:8px 10px; color:var(--text-2); line-height:1.5; vertical-align:top; border-right:1px solid var(--border);">已修复，5.12 上线</td>
+            </tr>
+            <!-- 交互优化 3/3 -->
+            <tr style="border-bottom:2px solid var(--border);">
+              <td style="padding:8px 10px; color:var(--text); line-height:1.5; vertical-align:top;">转单流程支付退回不符合预期</td>
+              <td style="padding:8px 10px; color:var(--text-2); line-height:1.5; vertical-align:top; border-right:1px solid var(--border);">预计 6.29 上线</td>
+            </tr>
+            <!-- 运营与流程 1/3 -->
+            <tr style="border-bottom:1px solid var(--border);">
+              <td rowspan="3" style="padding:8px 10px; font-size:11px; font-weight:700; letter-spacing:0.04em; text-align:center; vertical-align:middle; border-right:2px solid var(--border); color:#444; background:#f9f9f9;">运营与流程</td>
+              <td style="padding:8px 10px; color:var(--text); line-height:1.5; vertical-align:top;">核心流程配置商家易错配</td>
+              <td style="padding:8px 10px; color:var(--text-2); line-height:1.5; vertical-align:top; border-right:1px solid var(--border);">可以考虑将核心流程相关配置设成默认开通</td>
+              <td style="padding:8px 10px; vertical-align:middle; text-align:left;"><span style="border:1px solid #ccc; background:#f5f5f5; color:#444; border-radius:4px; padding:2px 7px; font-size:11px; white-space:nowrap; display:inline-block;">SaaS产研</span><span style="margin-left:3px;border:1px solid #ccc; background:#f5f5f5; color:#444; border-radius:4px; padding:2px 7px; font-size:11px; white-space:nowrap; display:inline-block;">到餐产研</span></td>
+            </tr>
+            <!-- 运营与流程 2/3 -->
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:8px 10px; color:var(--text); line-height:1.5; vertical-align:top;">销售知识库学习难度高</td>
+              <td style="padding:8px 10px; color:var(--text-2); line-height:1.5; vertical-align:top; border-right:1px solid var(--border);">持续优化AI问答能力</td>
+              <td rowspan="2" style="padding:8px 10px; vertical-align:middle; text-align:left;"><span style="border:1px solid #ccc; background:#f5f5f5; color:#444; border-radius:4px; padding:2px 7px; font-size:11px; white-space:nowrap; display:inline-block;">餐销售商家运营部</span></td>
+            </tr>
+            <!-- 运营与流程 3/3 -->
+            <tr>
+              <td style="padding:8px 10px; color:var(--text); line-height:1.5; vertical-align:top;">部分场景不适配</td>
+              <td style="padding:8px 10px; color:var(--text-2); line-height:1.5; vertical-align:top; border-right:1px solid var(--border);">未来到店取场景，推荐用轻量化秒提</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /viewport -->
+
+  <!-- Navigation -->
+  <div id="nav">
+    <button class="nav-btn" id="btn-prev" onclick="changeSlide(-1)" disabled>‹</button>
+    <button class="nav-dot active" onclick="goToSlide(0)"></button>
+    <button class="nav-dot" onclick="goToSlide(1)"></button>
+    <button class="nav-dot" onclick="goToSlide(2)"></button>
+    <button class="nav-dot" onclick="goToSlide(3)"></button>
+    <button class="nav-dot" onclick="goToSlide(4)"></button>
+    <button class="nav-dot" onclick="goToSlide(5)"></button>
+    <button class="nav-dot" onclick="goToSlide(6)"></button>
+    <button class="nav-dot" onclick="goToSlide(7)"></button>
+    <button class="nav-dot" onclick="goToSlide(8)"></button>
+    <button class="nav-dot" onclick="goToSlide(9)"></button>
+    <button class="nav-dot" onclick="goToSlide(10)"></button>
+    <button class="nav-dot" onclick="goToSlide(11)"></button>
+    <button class="nav-dot" onclick="goToSlide(12)"></button>
+    <button class="nav-dot" onclick="goToSlide(13)"></button>
+    <button class="nav-dot" onclick="goToSlide(14)"></button>
+    <button class="nav-btn" id="btn-next" onclick="changeSlide(1)">›</button>
+    <span id="slide-counter">1 / 15</span>
+  </div>
+</div>
+
+<script src="slide-b.js" defer></script>
+</body>
+</html>
